@@ -28,12 +28,8 @@ jobs:
           registry-url: https://npm.pkg.github.com
           scope: "@kyvvohq"
 
-      # `npm install` e não `npm ci` temporariamente: a Fase 1 trouxe deps
-      # @kyvvohq/* (asaas, design-system) e o package-lock.json ainda não foi
-      # gerado com um token read:packages. Rodar o workflow "Regenerar
-      # package-lock" e voltar pra `npm ci` quando o lock entrar.
       - name: Instalar dependências
-        run: npm install --no-audit --no-fund --no-package-lock
+        run: npm ci
 
       - name: Testes unitários
         run: npm test
