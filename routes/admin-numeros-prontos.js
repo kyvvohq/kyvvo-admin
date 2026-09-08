@@ -6,7 +6,7 @@
 // testa antes de considerar operacional. Vincular só copia
 // meta_phone_number_id/meta_waba_id pra tenants — o resto (status/webhook
 // via Cloud API) já funciona igual ao self-service (Embedded Signup).
-const metaWhatsappService = require('../meta-whatsapp-service');
+const metaWhatsappService = require('../lib/meta-whatsapp-service');
 
 function registerAdminNumerosProntosRoutes(fastify, pool) {
   fastify.get('/api/numeros-prontos', { preHandler: [fastify.authenticateAdmin] }, async () => {
