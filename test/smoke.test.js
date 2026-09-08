@@ -17,26 +17,35 @@ test('GET /health responde ok', async () => {
 
 test('rota protegida sem token -> 401', async () => {
   const app = await build();
-  const res = await app.inject({ method: 'GET', url: '/admin/api/versao' });
+  const res = await app.inject({ method: 'GET', url: '/api/versao' });
   assert.equal(res.statusCode, 401);
   await app.close();
 });
 
 test('login sem corpo -> 400', async () => {
   const app = await build();
-  const res = await app.inject({ method: 'POST', url: '/admin/api/auth/login', payload: {} });
+  const res = await app.inject({ method: 'POST', url: '/api/auth/login', payload: {} });
   assert.equal(res.statusCode, 400);
   await app.close();
 });
 
-test('authenticateAdmin aceita token assinado no namespace admin', async () => {
+test('authenticateAdmin aceita token do namespace admin', async () => {
   const app = await build();
   const token = app.jwt.admin.sign({ adminId: '00000000-0000-0000-0000-000000000000', email: 'x@y.z' });
   const res = await app.inject({
     method: 'GET',
-    url: '/admin/api/versao',
+    url: '/api/versao',
     headers: { authorization: `Bearer ${token}` },
   });
   assert.equal(res.statusCode, 200);
+  await app.close();
+});
+
+test('rotas de gestão registradas e protegidas (401 sem token)', async () => {
+  const app = await build();
+  for (const url of ['/api/tenants', '/api/assinaturas', '/api/planos', '/api/usuarios', '/api/numeros-prontos', '/api/whatsapp/status', '/api/ia-uso', '/api/configuracoes']) {
+    const res = await app.inject({ method: 'GET', url });
+    assert.equal(res.statusCode, 401, `${url} deveria exigir auth`);
+  }
   await app.close();
 });

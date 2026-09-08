@@ -1,0 +1,49 @@
+name: Regenerar package-lock
+
+# Uso único (workflow_dispatch): roda `npm install` com o NPM_PACKAGES_TOKEN do
+# repo e abre uma PR com o package-lock.json — a Fase 1 trouxe deps @kyvvohq/*
+# (asaas, design-system) e o lock precisa ser gerado com um token que tenha
+# read:packages. Apagar este arquivo depois que a PR do lock entrar e o gate
+# voltar pra `npm ci`.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  regen:
+    runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_PACKAGES_TOKEN }}
+      NPM_PACKAGES_TOKEN: ${{ secrets.NPM_PACKAGES_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: "@kyvvohq"
+      - name: npm install
+        run: npm install --no-audit --no-fund
+      - name: Abrir PR se o lock mudou
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if git diff --quiet -- package-lock.json; then
+            echo "Lock já em dia — nada a fazer."; exit 0
+          fi
+          BRANCH="ci/regen-package-lock"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add package-lock.json
+          git commit -m "CI: regenera package-lock.json com os pacotes @kyvvohq/*"
+          git push -f origin "$BRANCH"
+          gh pr create --base main --head "$BRANCH" \
+            --label "revisado:infra" \
+            --title "CI: regenera package-lock.json com os pacotes @kyvvohq/*" \
+            --body "Gerado pelo regen-locks.yml. Depois de mergear: trocar \`npm install --no-package-lock\` de volta por \`npm ci\` no gate e apagar o regen-locks.yml." \
+          || echo "Abra a PR manualmente: https://github.com/${{ github.repository }}/compare/main...$BRANCH"
