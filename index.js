@@ -7,7 +7,14 @@ const jwt = require('@fastify/jwt');
 const staticPlugin = require('@fastify/static');
 
 const { pool } = require('./lib/db');
+const planos = require('./lib/planos');
+const configSistema = require('./lib/configuracoes-sistema');
 const { registerAdminAuthRoutes } = require('./routes/admin-auth');
+const { registerAdminTenantsRoutes } = require('./routes/admin-tenants');
+const { registerAdminConfiguracoesRoutes } = require('./routes/admin-configuracoes');
+const { registerAdminMonitoramentoRoutes } = require('./routes/admin-monitoramento');
+const { registerAdminNumerosProntosRoutes } = require('./routes/admin-numeros-prontos');
+const { registerAdminUsuariosRoutes } = require('./routes/admin-usuarios');
 
 const PORT = process.env.PORT || 3004;
 
@@ -19,8 +26,7 @@ async function build() {
 
   // JWT da área admin — namespace próprio (fastify.jwt.admin.*,
   // request.adminJwtVerify, reply.adminJwtSign), decoratorName próprio
-  // (request.admin). Isolado de qualquer JWT de tenant. Mesma config do painel
-  // de origem (kyvvo-studio/server/panel/index.js).
+  // (request.admin). Mesma config do painel de origem.
   await fastify.register(jwt, {
     secret: ADMIN_JWT_SECRET,
     namespace: 'admin',
@@ -35,20 +41,38 @@ async function build() {
     }
   });
 
-  // Telas do admin — servidas cruas de public/ (sem bundler). Os assets usam
-  // paths root-absolutos e o JS chama /admin/api/... — o nginx proxia
-  // admin.kyvvo.com.br -> :3004 sem reescrever (diferente de hoje).
-  // O static de /ds/ (design system de node_modules/@kyvvohq/design-system)
-  // entra na Fase 1, junto com as telas de verdade.
+  // Telas do admin — servidas cruas de public/ na RAIZ (kyvvo-admin é
+  // standalone; não há painel de tenant pra colidir, então não precisa do
+  // namespace /admin/). O JS chama /api/... e navega pra /dashboard.html etc.
+  // O nginx proxia admin.kyvvo.com.br -> :3004 sem reescrever nada.
   await fastify.register(staticPlugin, {
     root: path.join(__dirname, 'public'),
-    prefix: '/admin/',
+    prefix: '/',
   });
+
+  // Design system servido cru de node_modules (sem bundler).
+  await fastify.register(staticPlugin, {
+    root: path.join(__dirname, 'node_modules', '@kyvvohq', 'design-system'),
+    prefix: '/ds/',
+    decorateReply: false,
+  });
+
+  // Caches de config/planos (lib/*): init sincrono + carregar() do banco.
+  // Se o banco não responder no boot, sobe mesmo assim com os defaults — as
+  // rotas que dependem disso degradam, não derrubam o serviço.
+  configSistema.init(pool);
+  planos.init(pool);
+  try {
+    await configSistema.carregar();
+    await planos.carregar();
+  } catch (err) {
+    fastify.log.warn({ err: err.message }, 'cache de config/planos não carregou no boot — seguindo com defaults');
+  }
 
   fastify.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
 
   // Versão do backend rodando — version.json gravado pelo workflow de deploy.
-  fastify.get('/admin/api/versao', { preHandler: [fastify.authenticateAdmin] }, async () => {
+  fastify.get('/api/versao', { preHandler: [fastify.authenticateAdmin] }, async () => {
     try {
       const conteudo = await fsPromises.readFile(path.join(__dirname, 'version.json'), 'utf8');
       return JSON.parse(conteudo);
@@ -58,6 +82,11 @@ async function build() {
   });
 
   registerAdminAuthRoutes(fastify, pool);
+  registerAdminTenantsRoutes(fastify, pool);
+  registerAdminConfiguracoesRoutes(fastify, pool);
+  registerAdminMonitoramentoRoutes(fastify, pool);
+  registerAdminNumerosProntosRoutes(fastify, pool);
+  registerAdminUsuariosRoutes(fastify, pool);
 
   return fastify;
 }

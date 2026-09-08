@@ -5,7 +5,7 @@
 const bcrypt = require('bcryptjs');
 
 function registerAdminAuthRoutes(fastify, pool) {
-  fastify.post('/admin/api/auth/login', async (request, reply) => {
+  fastify.post('/api/auth/login', async (request, reply) => {
     const { email, senha } = request.body || {};
     if (!email || !senha) {
       return reply.code(400).send({ error: 'E-mail e senha são obrigatórios' });

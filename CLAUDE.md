@@ -8,9 +8,16 @@ Guia para o Claude Code neste repositório.
 Serviço Fastify único, porta 3004, container `kyvvo-admin`, sem build e sem
 bundler. Layout flat: `index.js`, `lib/`, `routes/`, `public/`, `test/`.
 
-**Estado: Fase 0.** Está sendo extraído do `kyvvo-studio` (o admin hoje mora em
-`server/panel/`). Plano: `wild-petting-puffin.md` (topo). Hoje só tem
-`/health`, `POST /admin/api/auth/login`, `GET /admin/api/versao`.
+**Estado: Fase 1 (código movido).** As 6 rotas `routes/admin-*.js` + as telas
+`public/**` + as libs (`lib/{planos,configuracoes-sistema,validadores,
+trial-conta,pagamentos}.js`, `asaas-service.js`, `meta-whatsapp-service.js`)
+foram movidas verbatim de `kyvvo-studio/server/panel/`. **Diferença chave:** os
+paths perderam o prefixo `/admin/` — as rotas são `/api/*` e as telas ficam na
+raiz (`/dashboard.html`), porque aqui é standalone (não há painel de tenant pra
+colidir). O JS do front já chamava `/api/...` — o nginx do `admin.kyvvo.com.br`
+passa a proxiar `:3004` **sem reescrever** (antes reescrevia pra `/admin/`).
+Ainda não subiu na EC2 nem cortou o nginx (Fase 1b/2). Plano:
+`wild-petting-puffin.md` (topo).
 
 ## Comandos
 
@@ -19,16 +26,16 @@ npm start   # node index.js  (precisa ADMIN_JWT_SECRET, DATABASE_URL)
 npm test    # node --test test/*.test.js
 ```
 
-`npm ci` precisa de `NPM_PACKAGES_TOKEN` no ambiente (`.npmrc` aponta `@kyvvohq`
+`npm ci` precisa de `NPM_PACKAGES_TOKEN` (deps `@kyvvohq/asaas` + `@kyvvohq/design-system`) no ambiente (`.npmrc` aponta `@kyvvohq`
 pro GitHub Packages).
 
 ## Arquitetura
 
 - **`index.js`** monta o Fastify: `@fastify/jwt` no namespace `admin`
   (`fastify.jwt.admin.*`, `request.adminJwtVerify`, `request.admin`), decorator
-  `authenticateAdmin`, static de `public/` em `/admin/` e do design system em
+  `authenticateAdmin`, static de `public/` na raiz (`/`) e do design system em
   `/ds/`. Rotas de API vivem em `routes/admin-*.js`.
-- **Auth** (`routes/admin-auth.js`): `POST /admin/api/auth/login` valida contra
+- **Auth** (`routes/admin-auth.js`): `POST /api/auth/login` valida contra
   `kyvvo_admins` (schema `public` do `railway`), bcrypt, emite JWT `admin`
   (HS256, `ADMIN_JWT_SECRET`, TTL 7d). Sem lookup em banco por request —
   adequado pra poucos usuários de staff.
@@ -39,8 +46,8 @@ pro GitHub Packages).
   `agendamentos/clientes/profissionais/servicos` pro tenant-detalhe. A fonte da
   verdade dessas tabelas é `kyvvo-studio` + `kyvvo-platform` — nunca criar
   migration aqui.
-- **Front** é estático não-bundlado em `public/admin/`. Os assets usam paths
-  root-absolutos e o JS chama `/admin/api/...`; o nginx proxia
+- **Front** é estático não-bundlado em `public/`. Os assets usam paths
+  root-absolutos e o JS chama `/api/...`; o nginx proxia
   `admin.kyvvo.com.br` → `:3004` **sem reescrever** (diferente do estado
   pré-extração, em que reescrevia pra `/admin/`).
 
@@ -61,7 +68,7 @@ materializa `/opt/kyvvo/env/admin.env`, lido pelo compose via `env_file`.
   `lib/db.js` ou `routes/admin-auth.js` **sem a label `revisado:infra`**
   (Dependabot isento).
 - **`agente.yml`** (`issues: labeled`): `agent:tests` (só `test/`) ou
-  `agent:ui` (telas `public/admin/` + `routes/admin-*.js` exceto `admin-auth.js`)
+  `agent:ui` (telas `public/` + `routes/admin-*.js` exceto `admin-auth.js`)
   dispara o `claude-code-action`.
 - **`deploy.yml`** — dormente (`workflow_dispatch`) até a Fase 1.
 
