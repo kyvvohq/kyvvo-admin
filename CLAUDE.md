@@ -10,7 +10,7 @@ bundler. Layout flat: `index.js`, `lib/`, `routes/`, `public/`, `test/`.
 
 **Estado: Fase 1 (código movido).** As 6 rotas `routes/admin-*.js` + as telas
 `public/**` + as libs (`lib/{planos,configuracoes-sistema,validadores,
-trial-conta,pagamentos}.js`, `asaas-service.js`, `meta-whatsapp-service.js`)
+trial-conta,pagamentos}.js`, `lib/asaas-service.js`, `lib/meta-whatsapp-service.js`)
 foram movidas verbatim de `kyvvo-studio/server/panel/`. **Diferença chave:** os
 paths perderam o prefixo `/admin/` — as rotas são `/api/*` e as telas ficam na
 raiz (`/dashboard.html`), porque aqui é standalone (não há painel de tenant pra
