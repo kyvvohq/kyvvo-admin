@@ -71,6 +71,9 @@ async function build() {
 
   fastify.get('/health', async () => ({ status: 'ok', ts: new Date().toISOString() }));
 
+  // A raiz abre a tela de login (o nginx do host admin não reescreve mais nada).
+  fastify.get('/', async (request, reply) => reply.redirect('/login.html'));
+
   // Versão do backend rodando — version.json gravado pelo workflow de deploy.
   fastify.get('/api/versao', { preHandler: [fastify.authenticateAdmin] }, async () => {
     try {
