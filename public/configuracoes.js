@@ -108,9 +108,18 @@ const CONFIG_SISTEMA_LABELS = {
   max_tentativas_reenvio_token: 'Máximo de tentativas de reenvio de token',
   email_suporte: 'E-mail de suporte exibido no portal',
   whatsapp_suporte: 'WhatsApp de suporte',
+  // Horário comercial pra disparo de WhatsApp (People) — config por
+  // produto, ver server/db/066_configuracoes_whatsapp_horario.sql (kyvvo-studio)
+  // e GET /api/configuracoes/whatsapp-horario (lido pelo people).
+  whatsapp_horario_inicio: 'Início do horário comercial (WhatsApp, HH:MM)',
+  whatsapp_horario_fim: 'Fim do horário comercial (WhatsApp, HH:MM)',
+  whatsapp_dias_uteis: 'Dias úteis (WhatsApp, 1=seg...7=dom, separado por vírgula)',
 };
 const CONFIG_SISTEMA_NUMERICAS = new Set(['trial_dias', 'carencia_dias_inadimplencia', 'max_tentativas_reenvio_token']);
-const CONFIG_SISTEMA_ORDEM = ['trial_dias', 'carencia_dias_inadimplencia', 'max_tentativas_reenvio_token', 'email_suporte', 'whatsapp_suporte'];
+const CONFIG_SISTEMA_ORDEM = [
+  'trial_dias', 'carencia_dias_inadimplencia', 'max_tentativas_reenvio_token', 'email_suporte', 'whatsapp_suporte',
+  'whatsapp_horario_inicio', 'whatsapp_horario_fim', 'whatsapp_dias_uteis',
+];
 
 let dados = null;
 // Chaves de configuração geral atualmente em modo de edição inline (planos

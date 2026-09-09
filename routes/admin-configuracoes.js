@@ -16,7 +16,15 @@ const CONFIGURACOES_SISTEMA_CHAVES = [
   'max_tentativas_reenvio_token',
   'email_suporte',
   'whatsapp_suporte',
+  'whatsapp_horario_inicio',
+  'whatsapp_horario_fim',
+  'whatsapp_dias_uteis',
 ];
+
+// HH:MM (hora de Brasília). Dias úteis: dígitos ISO 1-7 (1=segunda),
+// separados por vírgula, sem repetir — "1,2,3,4,5" é seg-sex.
+const HORARIO_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DIAS_UTEIS_REGEX = /^[1-7](,[1-7]){0,6}$/;
 
 function registerAdminConfiguracoesRoutes(fastify, pool) {
   fastify.get('/api/configuracoes', { preHandler: [fastify.authenticateAdmin] }, async () => {
@@ -226,6 +234,15 @@ function registerAdminConfiguracoesRoutes(fastify, pool) {
     if (corpo.email_suporte !== undefined && !EMAIL_REGEX.test(corpo.email_suporte)) {
       return reply.code(400).send({ error: 'E-mail de suporte inválido.' });
     }
+    if (corpo.whatsapp_horario_inicio !== undefined && !HORARIO_REGEX.test(corpo.whatsapp_horario_inicio)) {
+      return reply.code(400).send({ error: '"whatsapp_horario_inicio" deve ser HH:MM (ex.: 09:00).' });
+    }
+    if (corpo.whatsapp_horario_fim !== undefined && !HORARIO_REGEX.test(corpo.whatsapp_horario_fim)) {
+      return reply.code(400).send({ error: '"whatsapp_horario_fim" deve ser HH:MM (ex.: 18:00).' });
+    }
+    if (corpo.whatsapp_dias_uteis !== undefined && !DIAS_UTEIS_REGEX.test(corpo.whatsapp_dias_uteis)) {
+      return reply.code(400).send({ error: '"whatsapp_dias_uteis" deve ser dígitos 1-7 separados por vírgula (1=segunda), ex.: 1,2,3,4,5.' });
+    }
 
     const client = await pool.connect();
     try {
@@ -256,6 +273,18 @@ function registerAdminConfiguracoesRoutes(fastify, pool) {
     await configSistema.carregar();
     const { rows: sistemaRows } = await pool.query('SELECT chave, valor FROM configuracoes_sistema');
     return Object.fromEntries(sistemaRows.map((r) => [r.chave, r.valor]));
+  });
+
+  // Pública (sem authenticateAdmin) — não é dado sensível, é só o horário
+  // comercial. Único jeito hoje de um produto (kyvvo-people) ler config do
+  // admin sem ser um usuário de staff logado — lido do cache em memória
+  // (configSistema.config), não bate no banco a cada chamada.
+  fastify.get('/api/configuracoes/whatsapp-horario', async () => {
+    return {
+      inicio: configSistema.config.whatsappHorarioInicio,
+      fim: configSistema.config.whatsappHorarioFim,
+      dias_uteis: configSistema.config.whatsappDiasUteis.split(',').map(Number),
+    };
   });
 }
 
