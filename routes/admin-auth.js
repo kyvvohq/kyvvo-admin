@@ -12,7 +12,7 @@ function registerAdminAuthRoutes(fastify, pool) {
     }
 
     const { rows } = await pool.query(
-      'SELECT id, email, senha_hash, nome FROM kyvvo_admins WHERE email = $1',
+      'SELECT id, email, senha_hash, nome, ativo FROM kyvvo_admins WHERE email = $1',
       [email.toLowerCase().trim()]
     );
     const admin = rows[0];
@@ -23,6 +23,9 @@ function registerAdminAuthRoutes(fastify, pool) {
     const senhaValida = await bcrypt.compare(senha, admin.senha_hash);
     if (!senhaValida) {
       return reply.code(401).send({ error: 'E-mail ou senha inválidos' });
+    }
+    if (!admin.ativo) {
+      return reply.code(403).send({ error: 'Acesso desativado. Fale com outro administrador.' });
     }
 
     const token = fastify.jwt.admin.sign({ adminId: admin.id, email: admin.email }, { expiresIn: '7d' });

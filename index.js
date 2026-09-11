@@ -15,6 +15,7 @@ const { registerAdminConfiguracoesRoutes } = require('./routes/admin-configuraco
 const { registerAdminMonitoramentoRoutes } = require('./routes/admin-monitoramento');
 const { registerAdminNumerosProntosRoutes } = require('./routes/admin-numeros-prontos');
 const { registerAdminUsuariosRoutes } = require('./routes/admin-usuarios');
+const { registerAdminAdministradoresRoutes } = require('./routes/admin-administradores');
 
 const PORT = process.env.PORT || 3004;
 
@@ -33,11 +34,21 @@ async function build() {
     decoratorName: 'admin',
   });
 
+  // Confere `ativo` no banco a cada request (não só na hora do login) —
+  // sem isso, desativar um admin (Sistema > Administradores) só faria
+  // efeito quando o token de 7 dias dele expirasse. O JWT não carrega
+  // tokenVersion pra invalidar por assinatura (diferente do login de
+  // tenant em kyvvo-platform); uma query indexada por request é aceitável
+  // aqui — é uma ferramenta interna de baixo tráfego.
   fastify.decorate('authenticateAdmin', async (request, reply) => {
     try {
       await request.adminJwtVerify();
     } catch {
       return reply.code(401).send({ error: 'Não autenticado' });
+    }
+    const { rows } = await pool.query('SELECT ativo FROM kyvvo_admins WHERE id = $1', [request.admin.adminId]);
+    if (!rows[0] || !rows[0].ativo) {
+      return reply.code(401).send({ error: 'Acesso desativado.' });
     }
   });
 
@@ -90,6 +101,7 @@ async function build() {
   registerAdminMonitoramentoRoutes(fastify, pool);
   registerAdminNumerosProntosRoutes(fastify, pool);
   registerAdminUsuariosRoutes(fastify, pool);
+  registerAdminAdministradoresRoutes(fastify, pool);
 
   return fastify;
 }
