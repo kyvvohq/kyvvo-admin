@@ -213,11 +213,60 @@ function iniciaisAdmin(nome) {
 }
 document.getElementById('user-menu-avatar').textContent = iniciaisAdmin(adminNome);
 
-document.getElementById('btn-sair').addEventListener('click', () => {
-  localStorage.removeItem('kyvvo_admin_token');
-  localStorage.removeItem('kyvvo_admin_nome');
-  window.location.href = '/login.html';
-});
+// Tema claro/escuro — o admin herdava só o claro do @kyvvohq/design-system
+// (o comentário antigo aqui dizia "modo único, sem toggle"), mas o DS e o
+// painel do tenant (kyvvo-studio) já suportam data-theme="dark" de verdade;
+// ninguém tinha voltado aqui pra ligar o toggle. Mesma chave localStorage
+// (`kyvvo_tema`) do painel do tenant — trocar de tema aqui não teria por
+// que divergir do resto do produto. O <head> de cada página já aplica o
+// tema salvo antes do primeiro paint (evita flash); aqui só o toggle em si.
+function temaAtual() {
+  return document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+}
+function definirTema(tema) {
+  document.documentElement.setAttribute('data-theme', tema);
+  localStorage.setItem('kyvvo_tema', tema);
+  const estadoEl = document.getElementById('user-menu-tema-estado');
+  const btnTema = document.getElementById('btn-tema-toggle');
+  if (estadoEl) estadoEl.textContent = tema === 'dark' ? 'Escuro' : 'Claro';
+  if (btnTema) btnTema.setAttribute('aria-checked', String(tema === 'dark'));
+}
+
+// Conteúdo do dropdown "montado" aqui (não estático em cada HTML) pelo
+// mesmo motivo do menu lateral (montarMenu): eram 11 cópias idênticas do
+// mesmo <div>, e só tinha o botão Sair — sem "Meu Perfil"/"Equipe"/"Ajuda"
+// porque a área admin ainda não tem tela de perfil própria nem conceito de
+// "equipe" pro staff da Kyvvo (o painel do tenant tem os dois); ficam pra
+// quando existir alguma dessas telas, pra não linkar pra lugar nenhum.
+function montarUserMenuDropdown() {
+  const dropdown = document.getElementById('user-menu-dropdown');
+  dropdown.innerHTML = '';
+
+  const btnTema = document.createElement('button');
+  btnTema.className = 'user-menu-tema';
+  btnTema.id = 'btn-tema-toggle';
+  btnTema.type = 'button';
+  btnTema.setAttribute('role', 'switch');
+  btnTema.innerHTML = '<span>Tema</span><span class="user-menu-tema-estado" id="user-menu-tema-estado"></span>';
+  btnTema.addEventListener('click', () => definirTema(temaAtual() === 'dark' ? 'light' : 'dark'));
+
+  const divisor = document.createElement('div');
+  divisor.className = 'user-menu-divisor';
+
+  const btnSair = document.createElement('button');
+  btnSair.className = 'user-menu-sair';
+  btnSair.id = 'btn-sair';
+  btnSair.innerHTML = '<span aria-hidden="true">⎋</span> Sair';
+  btnSair.addEventListener('click', () => {
+    localStorage.removeItem('kyvvo_admin_token');
+    localStorage.removeItem('kyvvo_admin_nome');
+    window.location.href = '/login.html';
+  });
+
+  dropdown.append(btnTema, divisor, btnSair);
+  definirTema(temaAtual()); // sincroniza o rótulo/aria-checked com o tema já aplicado no <head>
+}
+montarUserMenuDropdown();
 
 // User menu (avatar + dropdown) — mesmo comportamento do painel do tenant
 // (abre/fecha ao clicar no avatar, fecha ao clicar fora).

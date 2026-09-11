@@ -3,6 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <script>
+  // Tema aplicado antes do primeiro paint (evita flash) — mesmo dialeto
+  // data-theme do @kyvvohq/design-system, mesma chave kyvvo_tema do painel
+  // do tenant (kyvvo-studio). Sem redirect-guard aqui (é a própria página de
+  // login) — quem já tem token é redirecionado mais abaixo, depois do form.
+  document.documentElement.setAttribute('data-theme', localStorage.getItem('kyvvo_tema') || 'light');
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Admin — Kyvvo</title>

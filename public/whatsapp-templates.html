@@ -6,6 +6,10 @@
   if (!localStorage.getItem('kyvvo_admin_token')) {
     window.location.href = '/login.html';
   }
+  // Tema aplicado antes do primeiro paint (evita flash) — mesmo dialeto
+  // data-theme do @kyvvohq/design-system, mesma chave kyvvo_tema do painel
+  // do tenant (kyvvo-studio).
+  document.documentElement.setAttribute('data-theme', localStorage.getItem('kyvvo_tema') || 'light');
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Templates WhatsApp — Admin Kyvvo</title>
@@ -37,9 +41,7 @@
           </div>
           <span class="user-menu-chevron">▾</span>
         </button>
-        <div class="user-menu-dropdown" id="user-menu-dropdown" hidden>
-          <button class="user-menu-sair" id="btn-sair"><span aria-hidden="true">⎋</span> Sair</button>
-        </div>
+        <div class="user-menu-dropdown" id="user-menu-dropdown" hidden></div>
       </div>
       </div>
     </div>
