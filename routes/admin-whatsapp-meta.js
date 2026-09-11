@@ -24,7 +24,7 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
   // enriquecida com seus números (fan-out paralelo, WABA a WABA; o volume
   // hoje é pequeno o bastante pra não precisar de paginação/lote).
   fastify.get('/api/whatsapp/wabas', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
-    if (!process.env.META_WHATSAPP_TOKEN) {
+    if (!process.env.META_WHATSAPP_TOKEN || !process.env.META_BUSINESS_ID) {
       return { configurado: false, wabas: [] };
     }
     let wabas;
@@ -68,7 +68,7 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
   // com de qual WABA/tenant veio. Mesmo raciocínio de "status sempre da
   // Meta, nunca de cópia local": não existe tabela de templates aqui.
   fastify.get('/api/whatsapp/templates', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
-    if (!process.env.META_WHATSAPP_TOKEN) {
+    if (!process.env.META_WHATSAPP_TOKEN || !process.env.META_BUSINESS_ID) {
       return { configurado: false, templates: [] };
     }
     let wabas;

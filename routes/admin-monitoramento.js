@@ -1,41 +1,9 @@
 // Área admin da Kyvvo — Monitoramento — extraído de index.js (fase 9 da
-// modularização): GET /admin/api/whatsapp/status, GET /admin/api/ia-uso.
+// modularização): GET /admin/api/ia-uso.
+// GET /api/whatsapp/status (checava 1 META_PHONE_NUMBER_ID fixo) saiu daqui
+// — virou GET /api/whatsapp/wabas em admin-whatsapp-meta.js, que cobre
+// todo número de toda WABA que a Kyvvo gerencia, não só um fixo.
 function registerAdminMonitoramentoRoutes(fastify, pool) {
-  // Status de conexão do WhatsApp — chama a Graph API da Meta ao vivo com as
-  // credenciais configuradas (META_WHATSAPP_TOKEN/META_PHONE_NUMBER_ID) pra
-  // diagnosticar problema de token/permissão sem precisar entrar no painel da
-  // Meta ou no servidor.
-  fastify.get('/api/whatsapp/status', { preHandler: [fastify.authenticateAdmin] }, async () => {
-    const metaToken = process.env.META_WHATSAPP_TOKEN;
-    const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
-    const meta = { configurado: Boolean(metaToken && phoneNumberId), phoneNumberId: phoneNumberId || null };
-
-    if (meta.configurado) {
-      try {
-        const res = await fetch(
-          `https://graph.facebook.com/v22.0/${phoneNumberId}?fields=display_phone_number,verified_name,quality_rating,code_verification_status`,
-          { headers: { Authorization: `Bearer ${metaToken}` }, signal: AbortSignal.timeout(8000) }
-        );
-        const corpo = await res.json();
-        if (res.ok) {
-          meta.conectado = true;
-          meta.numeroExibido = corpo.display_phone_number || null;
-          meta.nomeVerificado = corpo.verified_name || null;
-          meta.qualidade = corpo.quality_rating || null;
-          meta.statusVerificacao = corpo.code_verification_status || null;
-        } else {
-          meta.conectado = false;
-          meta.erro = (corpo.error && corpo.error.message) || `A Meta respondeu ${res.status}.`;
-        }
-      } catch (err) {
-        meta.conectado = false;
-        meta.erro = `Falha ao contatar a Meta: ${err.message}`;
-      }
-    }
-
-    return { meta, verificadoEm: new Date().toISOString() };
-  });
-
   // Dashboard de consumo da IA (US68) — volume de mensagens/conversas por
   // tenant/dia e custo real em R$, calculado a partir dos tokens capturados
   // em cada turno do assistente (só linhas role='assistant' têm
