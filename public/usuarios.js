@@ -119,6 +119,7 @@ function renderLinha(u) {
       <td>${escapeHtml(u.plano_nome)}</td>
       <td>${u.total_modulos_ativos} módulo${u.total_modulos_ativos === 1 ? '' : 's'} ativo${u.total_modulos_ativos === 1 ? '' : 's'}</td>
       <td>${formatarDataHora(u.criado_em)}</td>
+      <td>${formatarDataHora(u.ultimo_login_em)}</td>
       <td><button type="button" class="btn-secundario" data-editar-modulos="${escapeHtml(u.tenant_id)}" data-tenant-nome="${escapeHtml(u.tenant_nome)}">Editar módulos</button></td>
     </tr>
   `;
@@ -140,11 +141,11 @@ function render() {
       <table class="tabela-tenants">
         <thead>
           <tr>
-            <th>Nome</th><th>E-mail</th><th>Papel</th><th>Status</th><th>Tenant</th><th>Plano</th><th>Módulos</th><th>Cadastrado em</th><th></th>
+            <th>Nome</th><th>E-mail</th><th>Papel</th><th>Status</th><th>Tenant</th><th>Plano</th><th>Módulos</th><th>Cadastrado em</th><th>Último login</th><th></th>
           </tr>
         </thead>
         <tbody>
-          ${usuarios.length ? usuarios.map(renderLinha).join('') : '<tr><td colspan="9">Nenhum usuário encontrado.</td></tr>'}
+          ${usuarios.length ? usuarios.map(renderLinha).join('') : '<tr><td colspan="10">Nenhum usuário encontrado.</td></tr>'}
         </tbody>
       </table>
     </div>
