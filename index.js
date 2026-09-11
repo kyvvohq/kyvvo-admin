@@ -40,15 +40,27 @@ async function build() {
   // tokenVersion pra invalidar por assinatura (diferente do login de
   // tenant em kyvvo-platform); uma query indexada por request é aceitável
   // aqui — é uma ferramenta interna de baixo tráfego.
+  //
+  // Falha ao CONSULTAR (banco fora do ar) não derruba a sessão — mesmo
+  // raciocínio de configSistema/planos logo abaixo ("sobe com os defaults
+  // se o banco não responder"): toda outra rota já depende do banco pros
+  // próprios dados, então um banco fora do ar já deixa o admin inútil de
+  // qualquer forma; barrar o login aqui só pioraria (ninguém entra, nem
+  // pra ver o que está quebrado). Resposta explícita "ativo: false" é a
+  // única que nega acesso de verdade.
   fastify.decorate('authenticateAdmin', async (request, reply) => {
     try {
       await request.adminJwtVerify();
     } catch {
       return reply.code(401).send({ error: 'Não autenticado' });
     }
-    const { rows } = await pool.query('SELECT ativo FROM kyvvo_admins WHERE id = $1', [request.admin.adminId]);
-    if (!rows[0] || !rows[0].ativo) {
-      return reply.code(401).send({ error: 'Acesso desativado.' });
+    try {
+      const { rows } = await pool.query('SELECT ativo FROM kyvvo_admins WHERE id = $1', [request.admin.adminId]);
+      if (!rows[0] || rows[0].ativo === false) {
+        return reply.code(401).send({ error: 'Acesso desativado.' });
+      }
+    } catch (err) {
+      fastify.log.warn({ err: err.message }, 'authenticateAdmin: falha ao checar ativo, seguindo (banco indisponível?)');
     }
   });
 
