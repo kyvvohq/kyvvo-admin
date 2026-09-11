@@ -95,7 +95,7 @@ const NAV_TREE = [
   },
   {
     tipo: 'grupo', label: 'Sistema', icon: 'shield', filhos: [
-      { label: 'Administradores', pendente: true },
+      { label: 'Administradores', href: '/administradores.html' },
       { label: 'Permissões', pendente: true },
       { label: 'Feature Flags', pendente: true },
       { label: 'Auditoria', pendente: true },

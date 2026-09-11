@@ -16,6 +16,7 @@ const { registerAdminMonitoramentoRoutes } = require('./routes/admin-monitoramen
 const { registerAdminWhatsappMetaRoutes } = require('./routes/admin-whatsapp-meta');
 const { registerAdminNumerosProntosRoutes } = require('./routes/admin-numeros-prontos');
 const { registerAdminUsuariosRoutes } = require('./routes/admin-usuarios');
+const { registerAdminAdministradoresRoutes } = require('./routes/admin-administradores');
 
 const PORT = process.env.PORT || 3004;
 
@@ -34,11 +35,33 @@ async function build() {
     decoratorName: 'admin',
   });
 
+  // Confere `ativo` no banco a cada request (não só na hora do login) —
+  // sem isso, desativar um admin (Sistema > Administradores) só faria
+  // efeito quando o token de 7 dias dele expirasse. O JWT não carrega
+  // tokenVersion pra invalidar por assinatura (diferente do login de
+  // tenant em kyvvo-platform); uma query indexada por request é aceitável
+  // aqui — é uma ferramenta interna de baixo tráfego.
+  //
+  // Falha ao CONSULTAR (banco fora do ar) não derruba a sessão — mesmo
+  // raciocínio de configSistema/planos logo abaixo ("sobe com os defaults
+  // se o banco não responder"): toda outra rota já depende do banco pros
+  // próprios dados, então um banco fora do ar já deixa o admin inútil de
+  // qualquer forma; barrar o login aqui só pioraria (ninguém entra, nem
+  // pra ver o que está quebrado). Resposta explícita "ativo: false" é a
+  // única que nega acesso de verdade.
   fastify.decorate('authenticateAdmin', async (request, reply) => {
     try {
       await request.adminJwtVerify();
     } catch {
       return reply.code(401).send({ error: 'Não autenticado' });
+    }
+    try {
+      const { rows } = await pool.query('SELECT ativo FROM kyvvo_admins WHERE id = $1', [request.admin.adminId]);
+      if (!rows[0] || rows[0].ativo === false) {
+        return reply.code(401).send({ error: 'Acesso desativado.' });
+      }
+    } catch (err) {
+      fastify.log.warn({ err: err.message }, 'authenticateAdmin: falha ao checar ativo, seguindo (banco indisponível?)');
     }
   });
 
@@ -92,6 +115,7 @@ async function build() {
   registerAdminWhatsappMetaRoutes(fastify, pool);
   registerAdminNumerosProntosRoutes(fastify, pool);
   registerAdminUsuariosRoutes(fastify, pool);
+  registerAdminAdministradoresRoutes(fastify, pool);
 
   return fastify;
 }
