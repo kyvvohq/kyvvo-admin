@@ -426,6 +426,17 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .menu-submenu.aberto { display: flex; }
 
+/* Item da árvore-alvo (imagem do Bruno) sem tela própria ainda — <span>,
+   não <a>, de propósito (nada pra clicar). Mesma altura/alinhamento de um
+   .menu-item real pra não quebrar o ritmo vertical do grupo, só esmaecido
+   + cursor default + risco visual de "ainda não existe". */
+.menu-item-pendente {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.55;
+}
+.menu-item-pendente:hover { color: var(--muted); background: none; }
+
 @media (max-width: 860px) {
   .painel-shell { flex-direction: column; }
   .painel-sidebar {

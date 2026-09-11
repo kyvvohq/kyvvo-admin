@@ -21,6 +21,9 @@ const LUCIDE_ICONS = {
   settings: '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
   code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+  package: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 9 5.15"/>',
+  megaphone: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
 };
 
 function svgIcone(nome, classe) {
@@ -37,9 +40,158 @@ function svgIcone(nome, classe) {
   return svg;
 }
 
-document.querySelectorAll('.menu-item[data-icon]').forEach((item) => {
-  item.insertBefore(svgIcone(item.dataset.icon, 'menu-icon'), item.firstChild);
-});
+// Árvore de navegação (pedido do Bruno: menu com grupos expansíveis, não
+// mais uma lista plana) — fonte única, montada aqui em vez de duplicada em
+// cada HTML (eram 9 cópias idênticas do mesmo <nav>, uma por página, e
+// qualquer alteração de menu exigia editar as 9). `pendente: true` marca
+// item da estrutura-alvo que ainda não tem tela: aparece na árvore (o
+// Bruno pediu pra ver a estrutura inteira), mas sem link — cada PR futura
+// que implementa a tela troca `pendente` por `href` aqui, isso e mais nada.
+const NAV_TREE = [
+  { tipo: 'item', label: 'Visão geral', icon: 'layout-dashboard', href: '/dashboard.html' },
+  {
+    tipo: 'grupo', label: 'Clientes', icon: 'building-2', filhos: [
+      { label: 'Empresas', href: '/painel.html' },
+      { label: 'Usuários', href: '/usuarios.html' },
+    ],
+  },
+  {
+    tipo: 'grupo', label: 'Produtos', icon: 'package', filhos: [
+      { label: 'Studio', pendente: true },
+      { label: 'People', pendente: true },
+      { label: 'Leads', pendente: true },
+      { label: 'CRM', pendente: true },
+    ],
+  },
+  {
+    tipo: 'grupo', label: 'WhatsApp', icon: 'message-circle', filhos: [
+      { label: 'Números', pendente: true },
+      { label: 'WABAs', pendente: true },
+      // "Saúde" é a tela de hoje (whatsapp.html): confere se a Cloud API
+      // da Meta está conectada de verdade — não é lista de números.
+      { label: 'Saúde', href: '/whatsapp.html' },
+      { label: 'Templates', pendente: true },
+      { label: 'Logs', pendente: true },
+    ],
+  },
+  {
+    tipo: 'grupo', label: 'Campanhas', icon: 'megaphone', filhos: [
+      { label: 'Templates', pendente: true },
+      { label: 'Envios', pendente: true },
+      { label: 'Relatórios', pendente: true },
+    ],
+  },
+  {
+    tipo: 'grupo', label: 'Plataforma', icon: 'credit-card', filhos: [
+      { label: 'Planos', pendente: true },
+      { label: 'Assinaturas', href: '/assinaturas.html' },
+      { label: 'Entitlements', pendente: true },
+      // Fora da estrutura que o Bruno mandou, mas já existia e não tinha
+      // pra onde ir — consumo/custo de IA é informação de plataforma.
+      { label: 'IA e consumo', href: '/ia-uso.html' },
+    ],
+  },
+  {
+    tipo: 'grupo', label: 'Sistema', icon: 'shield', filhos: [
+      { label: 'Administradores', pendente: true },
+      { label: 'Permissões', pendente: true },
+      { label: 'Feature Flags', pendente: true },
+      { label: 'Auditoria', pendente: true },
+      { label: 'Logs', pendente: true },
+      { label: 'Configurações', href: '/configuracoes.html' },
+      { label: 'Versões / Changelog', href: '/versao.html' },
+      { label: 'Swagger', href: '/docs', externo: true },
+    ],
+  },
+];
+
+function slugRotulo(texto) {
+  return texto
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-');
+}
+
+// Mesma convenção de grupo expansível do painel do tenant (app.js:
+// .menu-item-grupo + .menu-chevron + .menu-submenu, classes .aberto/
+// .expandido/.tem-filho-ativo já vêm do style.css compartilhado) —
+// adaptada aqui pra navegação real por <a href> (cada tela é um .html
+// próprio, sem router client-side como o painel do tenant tem).
+function montarMenu() {
+  const nav = document.getElementById('menu-lateral');
+  if (!nav) return; // login.html não tem sidebar
+  const caminhoAtual = window.location.pathname;
+  nav.innerHTML = '';
+
+  NAV_TREE.forEach((entrada) => {
+    if (entrada.tipo === 'item') {
+      const a = document.createElement('a');
+      a.className = 'menu-item';
+      a.href = entrada.href;
+      a.dataset.icon = entrada.icon;
+      a.textContent = entrada.label;
+      if (caminhoAtual === entrada.href) a.classList.add('active');
+      nav.appendChild(a);
+      return;
+    }
+
+    const grupoId = `menu-grupo-${slugRotulo(entrada.label)}`;
+    const toggle = document.createElement('div');
+    toggle.className = 'menu-item-grupo';
+    toggle.dataset.icon = entrada.icon;
+    toggle.dataset.submenu = grupoId;
+    const rotulo = document.createElement('span');
+    rotulo.textContent = entrada.label;
+    const chevron = document.createElement('span');
+    chevron.className = 'menu-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    toggle.append(rotulo, chevron);
+
+    const submenu = document.createElement('div');
+    submenu.className = 'menu-submenu';
+    submenu.id = grupoId;
+
+    let temFilhoAtivo = false;
+    entrada.filhos.forEach((filho) => {
+      if (filho.pendente) {
+        const span = document.createElement('span');
+        span.className = 'menu-item menu-item-pendente';
+        span.textContent = filho.label;
+        span.title = 'Em desenvolvimento';
+        submenu.appendChild(span);
+        return;
+      }
+      const a = document.createElement('a');
+      a.className = 'menu-item';
+      a.href = filho.href;
+      a.textContent = filho.label;
+      if (filho.externo) { a.target = '_blank'; a.rel = 'noopener'; }
+      if (caminhoAtual === filho.href) {
+        a.classList.add('active');
+        temFilhoAtivo = true;
+      }
+      submenu.appendChild(a);
+    });
+
+    if (temFilhoAtivo) {
+      toggle.classList.add('tem-filho-ativo', 'expandido');
+      submenu.classList.add('aberto');
+    }
+
+    toggle.addEventListener('click', () => {
+      submenu.classList.toggle('aberto');
+      toggle.classList.toggle('expandido');
+    });
+
+    nav.append(toggle, submenu);
+  });
+
+  nav.querySelectorAll('.menu-item[data-icon], .menu-item-grupo[data-icon]').forEach((item) => {
+    item.insertBefore(svgIcone(item.dataset.icon, 'menu-icon'), item.firstChild);
+  });
+}
+
+montarMenu();
 
 // Tema: o painel (tenant + admin) adotou o layout claro do Kyvvo People,
 // modo único, sem toggle. Os tokens vêm do @kyvvohq/design-system (:root =
