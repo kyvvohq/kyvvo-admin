@@ -13,6 +13,7 @@ const { registerAdminAuthRoutes } = require('./routes/admin-auth');
 const { registerAdminTenantsRoutes } = require('./routes/admin-tenants');
 const { registerAdminConfiguracoesRoutes } = require('./routes/admin-configuracoes');
 const { registerAdminMonitoramentoRoutes } = require('./routes/admin-monitoramento');
+const { registerAdminWhatsappMetaRoutes } = require('./routes/admin-whatsapp-meta');
 const { registerAdminNumerosProntosRoutes } = require('./routes/admin-numeros-prontos');
 const { registerAdminUsuariosRoutes } = require('./routes/admin-usuarios');
 
@@ -88,6 +89,7 @@ async function build() {
   registerAdminTenantsRoutes(fastify, pool);
   registerAdminConfiguracoesRoutes(fastify, pool);
   registerAdminMonitoramentoRoutes(fastify, pool);
+  registerAdminWhatsappMetaRoutes(fastify, pool);
   registerAdminNumerosProntosRoutes(fastify, pool);
   registerAdminUsuariosRoutes(fastify, pool);
 
