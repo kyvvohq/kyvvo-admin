@@ -57,8 +57,8 @@ const NAV_TREE = [
   },
   {
     tipo: 'grupo', label: 'Produtos', icon: 'package', filhos: [
-      { label: 'Studio', pendente: true },
-      { label: 'People', pendente: true },
+      { label: 'Studio', href: '/produtos-studio.html' },
+      { label: 'People', href: '/produtos-people.html' },
       { label: 'Leads', pendente: true },
       { label: 'CRM', pendente: true },
     ],
@@ -100,7 +100,10 @@ const NAV_TREE = [
       { label: 'Feature Flags', pendente: true },
       { label: 'Auditoria', pendente: true },
       { label: 'Logs', pendente: true },
-      { label: 'Configurações', href: '/configuracoes.html' },
+      // "Configurações" saiu daqui — virou aba por produto (Plano e
+      // cobranças/Bloqueios/Mensagens/Configurações gerais dentro de
+      // Produtos > Studio/People), pedido do Bruno: "todo o que for
+      // relacionado ao produto ser separado".
       { label: 'Versões / Changelog', href: '/versao.html' },
       { label: 'Swagger', href: '/docs', externo: true },
     ],

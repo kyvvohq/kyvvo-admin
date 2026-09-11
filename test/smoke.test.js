@@ -43,7 +43,7 @@ test('authenticateAdmin aceita token do namespace admin', async () => {
 
 test('rotas de gestão registradas e protegidas (401 sem token)', async () => {
   const app = await build();
-  for (const url of ['/api/tenants', '/api/assinaturas', '/api/planos', '/api/usuarios', '/api/numeros-prontos', '/api/whatsapp/wabas', '/api/whatsapp/templates', '/api/ia-uso', '/api/configuracoes', '/api/administradores']) {
+  for (const url of ['/api/tenants', '/api/assinaturas', '/api/planos', '/api/usuarios', '/api/numeros-prontos', '/api/whatsapp/wabas', '/api/whatsapp/templates', '/api/ia-uso', '/api/configuracoes/studio', '/api/administradores', '/api/mensagens']) {
     const res = await app.inject({ method: 'GET', url });
     assert.equal(res.statusCode, 401, `${url} deveria exigir auth`);
   }

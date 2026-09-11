@@ -12,7 +12,7 @@
   document.documentElement.setAttribute('data-theme', localStorage.getItem('kyvvo_tema') || 'light');
 </script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Configurações — Admin Kyvvo</title>
+<title>People — Admin Kyvvo</title>
 <link rel="icon" type="image/svg+xml" href="/ds/favicon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -29,7 +29,7 @@
   <div class="painel-main">
     <div class="topbar">
       <div class="topbar-textos">
-        <div class="topbar-titulo">Configurações</div>
+        <div class="topbar-titulo">People</div>
         <div class="admin-badge">🛠 Área administrativa</div>
       </div>
       <div class="topbar-direita">
@@ -45,7 +45,9 @@
       </div>
       </div>
     </div>
-    <div class="conteudo" id="conteudo" style="max-width: 1000px;"></div>
+    <div class="conteudo" style="max-width: 1400px;">
+      <div id="conteudo"></div>
+    </div>
     <footer class="rodape-app">
       <div class="logo">ky<span class="logo-vv">vv</span>o</div>
       <p class="rodape-app-copy">© 2026 Kyvvo. Todos os direitos reservados.</p>
@@ -53,6 +55,7 @@
   </div>
 </div>
 <script src="/shell.js"></script>
-<script src="/configuracoes.js"></script>
+<script>window.PRODUTO = 'people';</script>
+<script src="/produto-config.js"></script>
 </body>
 </html>
