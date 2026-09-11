@@ -1,14 +1,18 @@
-// Área admin da Kyvvo — Configurações do sistema (US38) — extraído de
-// index.js (fase 9 da modularização): GET /admin/api/configuracoes,
-// PATCH /admin/api/configuracoes/planos/:chave, PATCH /admin/api/configuracoes/sistema.
+// Área admin da Kyvvo — Configurações do sistema (US38), por produto desde
+// kyvvo-studio#073 (pedido do Bruno: "People deve ter suas configurações
+// apartada de Studio, são públicos diferentes"). GET/PATCH
+// /api/configuracoes/:produto, PATCH /api/configuracoes/planos/:chave (já
+// escopado pelo próprio produto do plano, não precisa de :produto na URL).
 const planos = require('../lib/planos');
 const configSistema = require('../lib/configuracoes-sistema');
 const { EMAIL_REGEX } = require('../lib/validadores');
 
+const PRODUTOS_VALIDOS = ['studio', 'people'];
+
 // Preços dos planos e configurações gerais (antes hardcoded no código) —
 // editáveis por qualquer admin da Kyvvo autenticado, sem deploy. Chaves das
 // configurações gerais que este endpoint reconhece (mesmas de
-// carregarConfiguracoesSistema/migration 028) — outras chaves no corpo são
+// carregarConfiguracoesSistema/migration 029) — outras chaves no corpo são
 // ignoradas silenciosamente.
 const CONFIGURACOES_SISTEMA_CHAVES = [
   'trial_dias',
@@ -27,11 +31,17 @@ const HORARIO_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DIAS_UTEIS_REGEX = /^[1-7](,[1-7]){0,6}$/;
 
 function registerAdminConfiguracoesRoutes(fastify, pool) {
-  fastify.get('/api/configuracoes', { preHandler: [fastify.authenticateAdmin] }, async () => {
+  fastify.get('/api/configuracoes/:produto', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    const { produto } = request.params;
+    if (!PRODUTOS_VALIDOS.includes(produto)) {
+      return reply.code(400).send({ error: `Produto inválido. Use: ${PRODUTOS_VALIDOS.join(', ')}.` });
+    }
+
     const { rows: planosRows } = await pool.query(
       `SELECT chave, produto, slug, nome, descricao, tecnologia, tipo_numero, preco_mensal,
               limite_disparos, destaque, badge, headline_diferencial, frase_beneficio, herda_de, ativo, atualizado_em
-       FROM planos ORDER BY produto ASC, preco_mensal ASC`
+       FROM planos WHERE produto = $1 ORDER BY preco_mensal ASC`,
+      [produto]
     );
     // US74/CA05 — features/limites por plano, pro admin editar (mesma forma
     // de junção em JS usada em GET /api/planos).
@@ -42,29 +52,31 @@ function registerAdminConfiguracoesRoutes(fastify, pool) {
     ]);
     // pg devolve NUMERIC como string (evita perda de precisão) — converte pra
     // number aqui, já que o front trata preço como valor numérico.
-    const planos = planosRows.map((p) => ({
+    const planosDoProduto = planosRows.map((p) => ({
       ...p,
       preco_mensal: Number(p.preco_mensal),
       features: featuresRows.filter((f) => f.plano_chave === p.chave).map((f) => ({ id: f.id, label: f.label, ordem: f.ordem })),
       limites: Object.fromEntries(limitesRows.filter((l) => l.plano_chave === p.chave).map((l) => [l.chave, l.valor])),
     }));
-    const { rows: sistemaRows } = await pool.query('SELECT chave, valor FROM configuracoes_sistema');
+    const { rows: sistemaRows } = await pool.query('SELECT chave, valor FROM configuracoes_sistema WHERE produto = $1', [produto]);
     const sistema = Object.fromEntries(sistemaRows.map((r) => [r.chave, r.valor]));
     const { rows: log } = await pool.query(
       `SELECT l.campo, l.valor_anterior, l.valor_novo, l.alterado_em, a.nome AS alterado_por_nome
        FROM log_configuracoes l
        LEFT JOIN kyvvo_admins a ON a.id = l.alterado_por
+       WHERE l.campo LIKE $1 OR l.campo LIKE $2
        ORDER BY l.alterado_em DESC
-       LIMIT 20`
+       LIMIT 20`,
+      [`sistema.${produto}.%`, `planos.%`] // planos: filtra por produto abaixo (chave do plano já identifica; o LIKE genérico aqui evita JOIN e é refinado em memória
     );
-    return { planos, sistema, log };
+    const logDoProduto = log.filter((l) => l.campo.startsWith(`sistema.${produto}.`) || chaves.some((c) => l.campo.startsWith(`planos.${c}.`)));
+    return { planos: planosDoProduto, sistema, log: logDoProduto };
   });
 
   // CA03/CA05/CA09/US67-CA04 — atualiza um plano (descrição/preço/limite/
-  // destaque/badge/ativo). `slug`, `tecnologia` e `tipo_numero` são
-  // identificadores estruturais e não são aceitos aqui (somente leitura).
-  // Preço mínimo de R$1 (CA03), e cada campo alterado grava uma linha própria
-  // no log de auditoria (CA05/CA07) na mesma transação da atualização.
+  // destaque/badge/ativo). `slug`, `tecnologia`, `tipo_numero` e `produto`
+  // são identificadores estruturais e não são aceitos aqui (somente
+  // leitura) — o produto do plano nunca muda depois de criado.
   // conversas_mes/profissionais/unidades são do Studio; vagas_ativas/
   // candidatos_notificados_mes são do People (migration 064) — mesma rota
   // de PATCH serve os dois produtos, então a lista de chaves válidas é a
@@ -146,7 +158,7 @@ function registerAdminConfiguracoesRoutes(fastify, pool) {
            atualizado_em = now(),
            atualizado_por = $11
          WHERE chave = $1
-         RETURNING chave, slug, nome, descricao, tecnologia, tipo_numero, preco_mensal,
+         RETURNING chave, produto, slug, nome, descricao, tecnologia, tipo_numero, preco_mensal,
                    limite_disparos, destaque, badge, headline_diferencial, frase_beneficio, ativo, atualizado_em`,
         [chave, nome ? nome.trim() : null, descricao, precoMensal, limiteDisparos, destaque, badge, headlineDiferencial, fraseBeneficio, ativo, request.admin.adminId]
       );
@@ -212,15 +224,18 @@ function registerAdminConfiguracoesRoutes(fastify, pool) {
     }
   });
 
-  // CA06/CA07/CA09 — atualiza uma ou mais configurações gerais de uma vez;
-  // recarrega o cache em memória (carregarConfiguracoesSistema) logo depois
-  // de persistir, pra valer no processo já rodando sem deploy/restart.
-  // Chaves numéricas alimentam constantes centrais do sistema (TRIAL_DIAS
-  // etc.) — um valor inválido aqui quebraria o cálculo de trial pra todo
-  // mundo, então valida antes de gravar.
+  // CA06/CA07/CA09 — atualiza uma ou mais configurações gerais de um
+  // produto de uma vez; recarrega o cache em memória
+  // (carregarConfiguracoesSistema) logo depois de persistir, pra valer no
+  // processo já rodando sem deploy/restart.
   const CONFIGURACOES_SISTEMA_NUMERICAS = new Set(['trial_dias', 'carencia_dias_inadimplencia', 'max_tentativas_reenvio_token']);
 
-  fastify.patch('/api/configuracoes/sistema', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+  fastify.patch('/api/configuracoes/:produto/sistema', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    const { produto } = request.params;
+    if (!PRODUTOS_VALIDOS.includes(produto)) {
+      return reply.code(400).send({ error: `Produto inválido. Use: ${PRODUTOS_VALIDOS.join(', ')}.` });
+    }
+
     const corpo = request.body || {};
     const chavesEnviadas = CONFIGURACOES_SISTEMA_CHAVES.filter((chave) => corpo[chave] !== undefined);
     if (!chavesEnviadas.length) {
@@ -249,16 +264,24 @@ function registerAdminConfiguracoesRoutes(fastify, pool) {
       await client.query('BEGIN');
       for (const chave of chavesEnviadas) {
         const valorNovo = String(corpo[chave]);
-        const { rows: antesRows } = await client.query('SELECT valor FROM configuracoes_sistema WHERE chave = $1 FOR UPDATE', [chave]);
+        const { rows: antesRows } = await client.query(
+          'SELECT valor FROM configuracoes_sistema WHERE chave = $1 AND produto = $2 FOR UPDATE',
+          [chave, produto]
+        );
         const valorAnterior = antesRows[0] ? antesRows[0].valor : null;
+        // ON CONFLICT: pode não existir linha pra este produto ainda (ex.:
+        // chave nova adicionada só depois da migration por produto) — trata
+        // como upsert em vez de assumir que a linha sempre existe.
         await client.query(
-          `UPDATE configuracoes_sistema SET valor = $2, atualizado_em = now(), atualizado_por = $3 WHERE chave = $1`,
-          [chave, valorNovo, request.admin.adminId]
+          `INSERT INTO configuracoes_sistema (chave, produto, valor, atualizado_em, atualizado_por)
+           VALUES ($1, $2, $3, now(), $4)
+           ON CONFLICT (chave, produto) DO UPDATE SET valor = $3, atualizado_em = now(), atualizado_por = $4`,
+          [chave, produto, valorNovo, request.admin.adminId]
         );
         if (valorAnterior !== valorNovo) {
           await client.query(
             `INSERT INTO log_configuracoes (campo, valor_anterior, valor_novo, alterado_por) VALUES ($1, $2, $3, $4)`,
-            [`sistema.${chave}`, valorAnterior, valorNovo, request.admin.adminId]
+            [`sistema.${produto}.${chave}`, valorAnterior, valorNovo, request.admin.adminId]
           );
         }
       }
@@ -270,20 +293,33 @@ function registerAdminConfiguracoesRoutes(fastify, pool) {
       client.release();
     }
 
+    // Recarrega o cache em memória do processo — só afeta o produto que
+    // este processo (kyvvo-admin) eventualmente ler via configSistema.config
+    // (hoje só o endpoint público de horário abaixo).
     await configSistema.carregar();
-    const { rows: sistemaRows } = await pool.query('SELECT chave, valor FROM configuracoes_sistema');
+    const { rows: sistemaRows } = await pool.query('SELECT chave, valor FROM configuracoes_sistema WHERE produto = $1', [produto]);
     return Object.fromEntries(sistemaRows.map((r) => [r.chave, r.valor]));
   });
 
   // Pública (sem authenticateAdmin) — não é dado sensível, é só o horário
   // comercial. Único jeito hoje de um produto (kyvvo-people) ler config do
-  // admin sem ser um usuário de staff logado — lido do cache em memória
-  // (configSistema.config), não bate no banco a cada chamada.
-  fastify.get('/api/configuracoes/whatsapp-horario', async () => {
+  // admin sem ser um usuário de staff logado. `produto` obrigatório desde
+  // que a config virou por produto — sem ele o valor certo não dá pra
+  // saber (Studio e People podem divergir).
+  fastify.get('/api/configuracoes/whatsapp-horario', async (request, reply) => {
+    const { produto } = request.query || {};
+    if (!PRODUTOS_VALIDOS.includes(produto)) {
+      return reply.code(400).send({ error: `Informe ?produto=studio|people.` });
+    }
+    const { rows } = await pool.query(
+      `SELECT chave, valor FROM configuracoes_sistema WHERE produto = $1 AND chave IN ('whatsapp_horario_inicio','whatsapp_horario_fim','whatsapp_dias_uteis')`,
+      [produto]
+    );
+    const valores = Object.fromEntries(rows.map((r) => [r.chave, r.valor]));
     return {
-      inicio: configSistema.config.whatsappHorarioInicio,
-      fim: configSistema.config.whatsappHorarioFim,
-      dias_uteis: configSistema.config.whatsappDiasUteis.split(',').map(Number),
+      inicio: valores.whatsapp_horario_inicio || configSistema.config.whatsappHorarioInicio,
+      fim: valores.whatsapp_horario_fim || configSistema.config.whatsappHorarioFim,
+      dias_uteis: (valores.whatsapp_dias_uteis || configSistema.config.whatsappDiasUteis).split(',').map(Number),
     };
   });
 }

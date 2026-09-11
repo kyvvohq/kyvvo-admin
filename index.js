@@ -17,6 +17,7 @@ const { registerAdminWhatsappMetaRoutes } = require('./routes/admin-whatsapp-met
 const { registerAdminNumerosProntosRoutes } = require('./routes/admin-numeros-prontos');
 const { registerAdminUsuariosRoutes } = require('./routes/admin-usuarios');
 const { registerAdminAdministradoresRoutes } = require('./routes/admin-administradores');
+const { registerAdminMensagensRoutes } = require('./routes/admin-mensagens');
 
 const PORT = process.env.PORT || 3004;
 
@@ -116,6 +117,7 @@ async function build() {
   registerAdminNumerosProntosRoutes(fastify, pool);
   registerAdminUsuariosRoutes(fastify, pool);
   registerAdminAdministradoresRoutes(fastify, pool);
+  registerAdminMensagensRoutes(fastify, pool);
 
   return fastify;
 }
