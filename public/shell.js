@@ -69,8 +69,8 @@ const NAV_TREE = [
       // WABAs/Templates ao vivo da Meta (pedido do Bruno) — sem tabela
       // local, ver comentário no topo de whatsapp-wabas.js/-templates.js.
       { label: 'WABAs', href: '/whatsapp-wabas.html' },
-      // "Saúde" é a tela de hoje (whatsapp.html): confere se a Cloud API
-      // da Meta está conectada de verdade — não é lista de números.
+      // "Saúde" (whatsapp.html): todo número de toda WABA, achatado numa
+      // tabela só, status sempre visível (aprovado ou não).
       { label: 'Saúde', href: '/whatsapp.html' },
       { label: 'Templates', href: '/whatsapp-templates.html' },
       { label: 'Logs', pendente: true },
