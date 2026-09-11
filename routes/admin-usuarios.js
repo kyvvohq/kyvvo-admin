@@ -17,7 +17,7 @@ function registerAdminUsuariosRoutes(fastify, pool) {
     }
 
     const { rows } = await pool.query(
-      `SELECT u.id, u.nome, u.email, u.role, u.ativo, u.email_verified, u.criado_em,
+      `SELECT u.id, u.nome, u.email, u.role, u.ativo, u.email_verified, u.criado_em, u.ultimo_login_em,
               t.id AS tenant_id, t.nome AS tenant_nome, t.plano,
               (SELECT COUNT(*)::int FROM tenant_modulos tm WHERE tm.tenant_id = t.id AND tm.ativo) AS total_modulos_ativos
        FROM usuarios u
