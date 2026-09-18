@@ -60,7 +60,7 @@ const NAV_TREE = [
       { label: 'Studio', href: '/produtos-studio.html' },
       { label: 'People', href: '/produtos-people.html' },
       { label: 'Leads', pendente: true },
-      { label: 'CRM', pendente: true },
+      { label: 'CRM', href: '/produtos-crm.html' },
     ],
   },
   {
