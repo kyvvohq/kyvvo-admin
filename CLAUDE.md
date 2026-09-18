@@ -26,7 +26,7 @@ npm start   # node index.js  (precisa ADMIN_JWT_SECRET, DATABASE_URL)
 npm test    # node --test test/*.test.js
 ```
 
-`npm ci` precisa de `NPM_PACKAGES_TOKEN` (deps `@kyvvohq/asaas` + `@kyvvohq/design-system`) no ambiente (`.npmrc` aponta `@kyvvohq`
+`npm ci` precisa de `NPM_PACKAGES_TOKEN` (dep `@kyvvohq/asaas`; o `/ds/` vem do nginx, não do npm) no ambiente (`.npmrc` aponta `@kyvvohq`
 pro GitHub Packages).
 
 ## Arquitetura

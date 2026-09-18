@@ -75,12 +75,9 @@ async function build() {
     prefix: '/',
   });
 
-  // Design system servido cru de node_modules (sem bundler).
-  await fastify.register(staticPlugin, {
-    root: path.join(__dirname, 'node_modules', '@kyvvohq', 'design-system'),
-    prefix: '/ds/',
-    decorateReply: false,
-  });
+  // /ds/* NÃO é mais servido por este app: o nginx atende /ds/ direto de
+  // /opt/kyvvo/design-system/ (sincronizado a cada push na main do
+  // kyvvo-design-system — consumo em tempo real, sem npm/lockfile por produto).
 
   // Caches de config/planos (lib/*): init sincrono + carregar() do banco.
   // Se o banco não responder no boot, sobe mesmo assim com os defaults — as
