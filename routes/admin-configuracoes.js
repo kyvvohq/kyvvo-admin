@@ -7,7 +7,7 @@ const planos = require('../lib/planos');
 const configSistema = require('../lib/configuracoes-sistema');
 const { EMAIL_REGEX } = require('../lib/validadores');
 
-const PRODUTOS_VALIDOS = ['studio', 'people'];
+const PRODUTOS_VALIDOS = ['studio', 'people', 'crm'];
 
 // Preços dos planos e configurações gerais (antes hardcoded no código) —
 // editáveis por qualquer admin da Kyvvo autenticado, sem deploy. Chaves das

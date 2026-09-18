@@ -10,7 +10,7 @@
 // chama isso pra montar o banner do próprio painel, mesmo padrão já usado
 // por GET /api/configuracoes/whatsapp-horario.
 
-const PRODUTOS_VALIDOS = ['studio', 'people'];
+const PRODUTOS_VALIDOS = ['studio', 'people', 'crm'];
 const SEVERIDADES_VALIDAS = ['info', 'aviso', 'erro'];
 
 function registerAdminMensagensRoutes(fastify, pool) {

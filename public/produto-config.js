@@ -8,7 +8,7 @@
 // (mesmo raciocínio de fonte única do shell.js pro menu).
 
 const PRODUTO = window.PRODUTO;
-const PRODUTO_LABEL = { studio: 'Studio', people: 'People' }[PRODUTO];
+const PRODUTO_LABEL = { studio: 'Studio', people: 'People', crm: 'CRM' }[PRODUTO];
 
 // token / identificação do admin / dropdown "Sair" vivem em shell.js (US53),
 // carregado antes deste script.
@@ -196,6 +196,19 @@ function renderAbaPlano() {
       </section>
     `;
   }
+  if (PRODUTO === 'crm') {
+    return `
+      <section class="secao-detalhe">
+        <h3>Preços dos planos — CRM</h3>
+        <div class="tabela-wrapper">
+          <table class="tabela-tenants">
+            <thead><tr><th>Plano</th><th>Descrição</th><th>Preço/mês</th><th>Ativo</th><th></th></tr></thead>
+            <tbody>${dados.planos.map(renderLinhaPlanoCrm).join('') || '<tr><td colspan="5">Nenhum plano cadastrado.</td></tr>'}</tbody>
+          </table>
+        </div>
+      </section>
+    `;
+  }
   return `
     <section class="secao-detalhe">
       <h3>Preços dos planos — Studio</h3>
@@ -245,6 +258,75 @@ function wireEventosPlano() {
   conteudo.querySelectorAll('[data-acao="editar-plano-people"]').forEach((btn) => {
     btn.addEventListener('click', () => abrirModalEditarPlanoPeople(btn.dataset.chave));
   });
+  conteudo.querySelectorAll('[data-acao="editar-plano-crm"]').forEach((btn) => {
+    btn.addEventListener('click', () => abrirModalEditarPlanoCrm(btn.dataset.chave));
+  });
+}
+
+function renderLinhaPlanoCrm(plano) {
+  const toggleAtivoClasse = plano.ativo ? 'toggle-on' : 'toggle-off';
+  return `
+    <tr data-plano="${plano.chave}">
+      <td>${escapeHtml(plano.nome)}</td>
+      <td>${escapeHtml(plano.descricao || '—')}</td>
+      <td>${formatarPreco(plano.preco_mensal)}</td>
+      <td><span class="toggle-readonly ${toggleAtivoClasse}" title="${plano.ativo ? 'Ativo' : 'Inativo'}"></span></td>
+      <td class="celula-acoes-plano"><button class="btn-secundario btn-tabela" data-acao="editar-plano-crm" data-chave="${plano.chave}">Editar</button></td>
+    </tr>
+  `;
+}
+
+function abrirModalEditarPlanoCrm(chave) {
+  const plano = dados.planos.find((p) => p.chave === chave);
+  if (!plano) return;
+  abrirModal(
+    '<h3>Editar plano CRM</h3>',
+    `
+      <div class="modal-erro" id="plano-crm-erro"></div>
+      <form id="form-editar-plano-crm">
+        <label for="plano-crm-nome">Nome *</label>
+        <input type="text" id="plano-crm-nome" value="${escapeHtml(plano.nome)}">
+        <label for="plano-crm-descricao">Descrição</label>
+        <input type="text" id="plano-crm-descricao" value="${escapeHtml(plano.descricao || '')}">
+        <label for="plano-crm-preco">Preço mensal *</label>
+        <input type="number" step="0.01" min="1" id="plano-crm-preco" value="${plano.preco_mensal}">
+        <label class="toggle-linha"><span class="toggle-switch"><input type="checkbox" id="plano-crm-ativo" ${plano.ativo ? 'checked' : ''}><span class="toggle-switch-trilho"></span></span> Ativo</label>
+        <p class="modal-texto">⚠️ Alterações de preço afetam apenas novas assinaturas.</p>
+        <div class="modal-acoes">
+          <button type="button" class="btn-secundario" id="btn-sair-editar-plano-crm">Sair</button>
+          <button type="submit" class="btn-primario" id="btn-salvar-editar-plano-crm">Salvar</button>
+        </div>
+      </form>
+    `
+  );
+  document.getElementById('btn-sair-editar-plano-crm').addEventListener('click', fecharModal);
+  document.getElementById('form-editar-plano-crm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await salvarPlanoCrm(chave);
+  });
+}
+
+async function salvarPlanoCrm(chave) {
+  const nome = document.getElementById('plano-crm-nome').value.trim();
+  const descricao = document.getElementById('plano-crm-descricao').value.trim();
+  const precoMensal = document.getElementById('plano-crm-preco').value;
+  const ativo = document.getElementById('plano-crm-ativo').checked;
+  const erroEl = document.getElementById('plano-crm-erro');
+  erroEl.textContent = '';
+  if (!nome) { erroEl.textContent = 'Nome do plano não pode ficar em branco.'; return; }
+  if (!(Number(precoMensal) >= 1)) { erroEl.textContent = 'Preço mensal deve ser no mínimo R$ 1,00.'; return; }
+
+  const resultado = await api(`/api/configuracoes/planos/${chave}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ nome, descricao, preco_mensal: Number(precoMensal), ativo }),
+  });
+  if (resultado && !resultado.error) {
+    fecharModal();
+    mostrarToast('Plano atualizado com sucesso.', 'sucesso');
+    await carregar();
+  } else {
+    erroEl.textContent = (resultado && resultado.error) || 'Erro ao salvar plano.';
+  }
 }
 
 function abrirModalEditarPlanoPeople(chave) {
@@ -564,7 +646,7 @@ function renderLinhaMensagem(m) {
     <tr data-mensagem="${m.id}">
       <td>${escapeHtml(m.texto)}</td>
       <td><span class="badge badge-status ${SEVERIDADE_CLASSES[m.severidade]}">${SEVERIDADE_LABELS[m.severidade]}</span></td>
-      <td>${m.produto ? escapeHtml({ studio: 'Studio', people: 'People' }[m.produto]) : 'Kyvvo inteira'}</td>
+      <td>${m.produto ? escapeHtml({ studio: 'Studio', people: 'People', crm: 'CRM' }[m.produto] || m.produto) : 'Kyvvo inteira'}</td>
       <td><span class="badge ${m.ativo ? 'badge-status-ativo' : 'badge-status-inativo'}">${m.ativo ? 'Ativa' : 'Desativada'}</span></td>
       <td>${m.expira_em ? formatarDataHora(m.expira_em) : '—'}</td>
       <td class="celula-acoes-plano">
