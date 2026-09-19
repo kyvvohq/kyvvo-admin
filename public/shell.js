@@ -73,7 +73,10 @@ const NAV_TREE = [
       // tabela só, status sempre visível (aprovado ou não).
       { label: 'Saúde', href: '/whatsapp.html' },
       { label: 'Templates', href: '/whatsapp-templates.html' },
-      { label: 'Logs', pendente: true },
+      // Total/realizados/histórico de disparo de automação, cross-produto
+      // Studio+People (pedido do Bruno) — ver comentário em
+      // routes/admin-whatsapp-disparos.js.
+      { label: 'Disparos', href: '/whatsapp-disparos.html' },
     ],
   },
   {
