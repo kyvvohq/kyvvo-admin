@@ -11,13 +11,14 @@
 const PEOPLE_INTERNAL_URL = process.env.PEOPLE_INTERNAL_URL || 'http://people:3002';
 const ADMIN_INTERNAL_TOKEN = process.env.ADMIN_INTERNAL_TOKEN;
 
-async function buscarDisparosPeople(fastify) {
+async function buscarDisparosPeople(fastify, tenantId) {
   if (!ADMIN_INTERNAL_TOKEN) {
     fastify.log.warn('[whatsapp-disparos] ADMIN_INTERNAL_TOKEN não configurado — disparos do People ficam de fora');
     return [];
   }
   try {
-    const res = await fetch(`${PEOPLE_INTERNAL_URL}/people/admin-interno/whatsapp-disparos`, {
+    const query = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : '';
+    const res = await fetch(`${PEOPLE_INTERNAL_URL}/people/admin-interno/whatsapp-disparos${query}`, {
       headers: { 'x-admin-internal-token': ADMIN_INTERNAL_TOKEN },
       signal: AbortSignal.timeout(8000),
     });
@@ -35,17 +36,19 @@ async function buscarDisparosPeople(fastify) {
 
 function registerAdminWhatsappDisparosRoutes(fastify, pool) {
   fastify.get('/api/whatsapp/disparos', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
-    const { produto, status } = request.query || {};
+    const { produto, status, tenant_id: tenantId } = request.query || {};
 
     const [studioResult, peopleRows] = await Promise.all([
       pool.query(
         `select d.id, d.tenant_id, t.nome as tenant_nome, d.telefone_e164, d.template_nome, d.gatilho, d.status, d.criado_em
          from whatsapp_disparos d
          left join tenants t on t.id = d.tenant_id
+         ${tenantId ? 'where d.tenant_id = $1' : ''}
          order by d.criado_em desc
-         limit 1000`
+         limit 1000`,
+        tenantId ? [tenantId] : []
       ),
-      buscarDisparosPeople(fastify),
+      buscarDisparosPeople(fastify, tenantId),
     ]);
     const studioRows = studioResult.rows.map((row) => ({ ...row, produto: 'studio' }));
 

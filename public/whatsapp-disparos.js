@@ -57,8 +57,10 @@ function badgeStatus(status) {
   return `<span class="badge badge-status ${STATUS_CLASSES[status] || 'badge-status-inativo'}">${escapeHtml(STATUS_LABELS[status] || status)}</span>`;
 }
 
-let filtro = { produto: '', status: '' };
+let filtro = { produto: '', status: '', tenant_id: '' };
 let carregando = false;
+let tenants = [];
+let tenantsCarregados = false;
 
 async function carregar() {
   if (carregando) return;
@@ -67,9 +69,17 @@ async function carregar() {
   const params = new URLSearchParams();
   if (filtro.produto) params.set('produto', filtro.produto);
   if (filtro.status) params.set('status', filtro.status);
-  const resposta = await api(`/api/whatsapp/disparos?${params.toString()}`);
+  if (filtro.tenant_id) params.set('tenant_id', filtro.tenant_id);
+
+  const chamadas = [api(`/api/whatsapp/disparos?${params.toString()}`)];
+  if (!tenantsCarregados) chamadas.push(api('/api/tenants'));
+  const [resposta, tenantsResp] = await Promise.all(chamadas);
   carregando = false;
   if (!resposta) return;
+  if (tenantsResp) {
+    tenants = (tenantsResp.tenants || []).slice().sort((a, b) => a.nome.localeCompare(b.nome));
+    tenantsCarregados = true;
+  }
   render(resposta);
 }
 
@@ -80,17 +90,21 @@ function render(dados) {
 
     <div class="cards-resumo" style="display:flex;gap:16px;margin:16px 0">
       <div class="secao-detalhe" style="flex:1">
-        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Total de disparos</div>
+        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Total de disparos${filtro.tenant_id ? ' (cliente selecionado)' : ''}</div>
         <div style="font-size:28px;font-weight:700">${dados.total}</div>
       </div>
       <div class="secao-detalhe" style="flex:1">
-        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Disparos realizados</div>
+        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Disparos realizados${filtro.tenant_id ? ' (cliente selecionado)' : ''}</div>
         <div style="font-size:28px;font-weight:700">${dados.realizados}</div>
       </div>
     </div>
 
     <section class="secao-detalhe">
       <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <select id="filtro-tenant">
+          <option value="">Todos os clientes</option>
+          ${tenants.map((t) => `<option value="${t.id}" ${filtro.tenant_id === t.id ? 'selected' : ''}>${escapeHtml(t.nome)}</option>`).join('')}
+        </select>
         <select id="filtro-produto">
           <option value="">Todos os produtos</option>
           <option value="studio" ${filtro.produto === 'studio' ? 'selected' : ''}>Studio</option>
@@ -114,6 +128,7 @@ function render(dados) {
     </section>
   `;
 
+  document.getElementById('filtro-tenant').addEventListener('change', (e) => { filtro.tenant_id = e.target.value; carregar(); });
   document.getElementById('filtro-produto').addEventListener('change', (e) => { filtro.produto = e.target.value; carregar(); });
   document.getElementById('filtro-status').addEventListener('change', (e) => { filtro.status = e.target.value; carregar(); });
 }
