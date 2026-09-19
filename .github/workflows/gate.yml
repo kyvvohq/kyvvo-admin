@@ -11,7 +11,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
+    # Só existe desde que este repo ganhou migration própria (db/001, ver
+    # lib/db.js) — antes disso, todo o schema de public.* vinha migrado
+    # via kyvvo-studio, sem nenhum Postgres neste gate.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: admin_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/admin_test
       NODE_ENV: test
       ADMIN_JWT_SECRET: test-secret
       # O .npmrc versionado expande ${NPM_PACKAGES_TOKEN}; sem ele no env o
@@ -30,6 +47,13 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+      # Roda o runner real (@kyvvohq/db-migrate via lib/db.js) contra o
+      # Postgres efêmero — aplica db/*.sql do zero, sozinho (sem o schema
+      # do kyvvo-studio por perto, ver comentário em db/001 sobre não usar
+      # FK pra kyvvo_admins).
+      - name: Aplicar migrations do zero
+        run: node -e "require('./lib/db').migrar().then(() => { console.log('migrations ok'); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })"
 
       - name: Testes unitários
         run: npm test

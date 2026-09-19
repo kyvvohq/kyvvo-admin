@@ -6,7 +6,7 @@ const Fastify = require('fastify');
 const jwt = require('@fastify/jwt');
 const staticPlugin = require('@fastify/static');
 
-const { pool } = require('./lib/db');
+const { pool, migrar } = require('./lib/db');
 const planos = require('./lib/planos');
 const configSistema = require('./lib/configuracoes-sistema');
 const { registerAdminAuthRoutes } = require('./routes/admin-auth');
@@ -122,7 +122,8 @@ async function build() {
 }
 
 if (require.main === module) {
-  build()
+  migrar()
+    .then(() => build())
     .then((app) => app.listen({ port: PORT, host: '0.0.0.0' }))
     .then(() => console.log(`kyvvo-admin ouvindo na porta ${PORT}`))
     .catch((err) => {
