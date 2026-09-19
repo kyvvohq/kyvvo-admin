@@ -46,19 +46,23 @@ const STATUS_LABELS = {
   erro: 'Erro no envio',
   bloqueado_optout: 'Bloqueado (opt-out)',
   bloqueado_24h: 'Bloqueado (24h)',
+  bloqueado_limite_plano: 'Bloqueado (limite do plano)',
 };
 const STATUS_CLASSES = {
   enviado: 'badge-status-ativo',
   erro: 'badge-status-inadimplente',
   bloqueado_optout: 'badge-status-inativo',
   bloqueado_24h: 'badge-status-nao-ativado',
+  bloqueado_limite_plano: 'badge-status-inadimplente',
 };
 function badgeStatus(status) {
   return `<span class="badge badge-status ${STATUS_CLASSES[status] || 'badge-status-inativo'}">${escapeHtml(STATUS_LABELS[status] || status)}</span>`;
 }
 
-let filtro = { produto: '', status: '' };
+let filtro = { produto: '', status: '', tenant_id: '' };
 let carregando = false;
+let tenants = [];
+let tenantsCarregados = false;
 
 async function carregar() {
   if (carregando) return;
@@ -67,9 +71,17 @@ async function carregar() {
   const params = new URLSearchParams();
   if (filtro.produto) params.set('produto', filtro.produto);
   if (filtro.status) params.set('status', filtro.status);
-  const resposta = await api(`/api/whatsapp/disparos?${params.toString()}`);
+  if (filtro.tenant_id) params.set('tenant_id', filtro.tenant_id);
+
+  const chamadas = [api(`/api/whatsapp/disparos?${params.toString()}`)];
+  if (!tenantsCarregados) chamadas.push(api('/api/tenants'));
+  const [resposta, tenantsResp] = await Promise.all(chamadas);
   carregando = false;
   if (!resposta) return;
+  if (tenantsResp) {
+    tenants = (tenantsResp.tenants || []).slice().sort((a, b) => a.nome.localeCompare(b.nome));
+    tenantsCarregados = true;
+  }
   render(resposta);
 }
 
@@ -78,19 +90,24 @@ function render(dados) {
     <h2 class="titulo-detalhe">Disparos de WhatsApp</h2>
     <p class="vazio-inline">Automações do Studio e do People — total de tentativas e quantas realmente saíram, com o histórico completo.</p>
 
-    <div class="cards-resumo" style="display:flex;gap:16px;margin:16px 0">
-      <div class="secao-detalhe" style="flex:1">
-        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Total de disparos</div>
+    <div class="cards-resumo" style="display:flex;gap:16px;margin:16px 0;flex-wrap:wrap">
+      <div class="secao-detalhe" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Total de disparos${filtro.tenant_id ? ' (cliente selecionado)' : ''}</div>
         <div style="font-size:28px;font-weight:700">${dados.total}</div>
       </div>
-      <div class="secao-detalhe" style="flex:1">
-        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Disparos realizados</div>
+      <div class="secao-detalhe" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Disparos realizados${filtro.tenant_id ? ' (cliente selecionado)' : ''}</div>
         <div style="font-size:28px;font-weight:700">${dados.realizados}</div>
       </div>
+      ${renderCardLimitePlano(dados.limitePlano)}
     </div>
 
     <section class="secao-detalhe">
       <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+        <select id="filtro-tenant">
+          <option value="">Todos os clientes</option>
+          ${tenants.map((t) => `<option value="${t.id}" ${filtro.tenant_id === t.id ? 'selected' : ''}>${escapeHtml(t.nome)}</option>`).join('')}
+        </select>
         <select id="filtro-produto">
           <option value="">Todos os produtos</option>
           <option value="studio" ${filtro.produto === 'studio' ? 'selected' : ''}>Studio</option>
@@ -102,6 +119,7 @@ function render(dados) {
           <option value="erro" ${filtro.status === 'erro' ? 'selected' : ''}>Erro no envio</option>
           <option value="bloqueado_optout" ${filtro.status === 'bloqueado_optout' ? 'selected' : ''}>Bloqueado (opt-out)</option>
           <option value="bloqueado_24h" ${filtro.status === 'bloqueado_24h' ? 'selected' : ''}>Bloqueado (24h)</option>
+          <option value="bloqueado_limite_plano" ${filtro.status === 'bloqueado_limite_plano' ? 'selected' : ''}>Bloqueado (limite do plano)</option>
         </select>
       </div>
       <h3>Histórico ${dados.disparos.length < dados.total ? `(últimos ${dados.disparos.length} de ${dados.total})` : ''}</h3>
@@ -114,8 +132,31 @@ function render(dados) {
     </section>
   `;
 
+  document.getElementById('filtro-tenant').addEventListener('change', (e) => { filtro.tenant_id = e.target.value; carregar(); });
   document.getElementById('filtro-produto').addEventListener('change', (e) => { filtro.produto = e.target.value; carregar(); });
   document.getElementById('filtro-status').addEventListener('change', (e) => { filtro.status = e.target.value; carregar(); });
+}
+
+function renderCardLimitePlano(limitePlano) {
+  if (!limitePlano) return '';
+  const { planoNome, limite, usadoMesAtual } = limitePlano;
+  if (limite == null) {
+    return `
+      <div class="secao-detalhe" style="flex:1;min-width:200px">
+        <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Limite do plano (${escapeHtml(planoNome)})</div>
+        <div style="font-size:28px;font-weight:700">Sem limite</div>
+      </div>
+    `;
+  }
+  const estourou = usadoMesAtual >= limite;
+  const cor = estourou ? '#D92D20' : usadoMesAtual >= limite * 0.8 ? '#B54708' : 'inherit';
+  return `
+    <div class="secao-detalhe" style="flex:1;min-width:200px">
+      <div style="font-size:13px;color:var(--cor-texto-secundario,#666)">Uso do mês — plano ${escapeHtml(planoNome)}</div>
+      <div style="font-size:28px;font-weight:700;color:${cor}">${usadoMesAtual} / ${limite}</div>
+      ${estourou ? '<div style="font-size:12px;color:#D92D20;margin-top:4px">⚠ Limite atingido — novos disparos deste cliente estão sendo bloqueados</div>' : ''}
+    </div>
+  `;
 }
 
 function renderLinha(d) {
