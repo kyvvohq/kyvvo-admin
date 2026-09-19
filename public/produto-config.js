@@ -123,20 +123,34 @@ const CONFIG_SISTEMA_NUMERICAS = new Set(['trial_dias', 'carencia_dias_inadimple
 const SEVERIDADE_LABELS = { info: 'Info', aviso: 'Aviso', erro: 'Erro' };
 const SEVERIDADE_CLASSES = { info: 'badge-status-ativo', aviso: 'badge-status-nao-ativado', erro: 'badge-status-inadimplente' };
 
+// Catálogo de eventos obrigatórios (Handoff v2 do People, Parte 5.2) — só
+// existe pro People; Studio/CRM não têm esse conceito ainda.
+const TEMPLATE_STATUS_LABELS = { pendente: 'Pendente', aprovado: 'Aprovado', rejeitado: 'Rejeitado' };
+// Estimativa de referência (Meta Cloud API, categoria Utility) — não é
+// tabela oficial, é só pra dar noção de ordem de grandeza do COGS por
+// candidatura antes de marcar um evento como obrigatório (Parte 5.2:
+// "o admin exibe o impacto estimado de custo"). Ajustar aqui conforme a
+// tabela vigente da Meta, sem precisar mexer em mais nada.
+const CUSTO_ESTIMADO_UTILITY_BRL = 0.15;
+
 let dados = null;
 let mensagens = [];
+let eventosCatalogo = [];
 const sistemaEmEdicao = new Set();
 let estado = { aba: 'plano' };
 
 async function carregar() {
   conteudo.innerHTML = '<div class="vazio">Carregando...</div>';
-  const [config, mensagensResp] = await Promise.all([
+  const chamadas = [
     api(`/api/configuracoes/${PRODUTO}`),
     api(`/api/mensagens?produto=${PRODUTO}`),
-  ]);
+  ];
+  if (PRODUTO === 'people') chamadas.push(api('/api/eventos-catalogo'));
+  const [config, mensagensResp, eventosResp] = await Promise.all(chamadas);
   if (!config) return;
   dados = config;
   mensagens = (mensagensResp && mensagensResp.mensagens) || [];
+  eventosCatalogo = (eventosResp && eventosResp.eventos) || [];
   render();
 }
 
@@ -145,6 +159,9 @@ const ABAS = [
   { id: 'bloqueios', label: 'Bloqueios' },
   { id: 'mensagens', label: 'Mensagens' },
   { id: 'geral', label: 'Configurações gerais' },
+  // Catálogo de eventos obrigatórios só existe pro People (Handoff v2,
+  // Parte 5.2) — Studio/CRM não têm essa engrenagem ainda.
+  ...(PRODUTO === 'people' ? [{ id: 'eventos', label: 'Eventos' }] : []),
 ];
 
 function render() {
@@ -178,6 +195,9 @@ function renderAba() {
       ${renderLogAuditoria()}
     `;
     wireEventosConfigGeral();
+  } else if (estado.aba === 'eventos') {
+    alvo.innerHTML = renderAbaEventosCatalogo();
+    wireEventosEventosCatalogo();
   }
 }
 
@@ -762,6 +782,149 @@ function abrirModalConfirmarExcluirMensagem(id) {
       mostrarToast((resultado && resultado.error) || 'Erro ao excluir mensagem.', 'erro');
     }
   });
+}
+
+// ---------- Catálogo de eventos obrigatórios (People, Handoff v2 Parte 5.2) ----------
+function renderAbaEventosCatalogo() {
+  return `
+    <section class="secao-detalhe">
+      <p class="vazio-inline">Eventos obrigatórios do Kyvvo People (confirmação de candidatura, encerramento de vaga) — o recrutador nunca pode desativar um evento marcado como obrigatório aqui. Um evento só pode virar obrigatório com template aprovado na Meta.</p>
+      <div class="tabela-wrapper">
+        <table class="tabela-tenants">
+          <thead><tr><th>Código</th><th>Canal</th><th>Template</th><th>Status do template</th><th>Obrigatório</th><th>Ativo</th><th>Versão</th><th>Custo estimado/candidatura</th><th></th></tr></thead>
+          <tbody>${eventosCatalogo.length ? eventosCatalogo.map(renderLinhaEventoCatalogo).join('') : '<tr><td colspan="9">Nenhum evento no catálogo ainda.</td></tr>'}</tbody>
+        </table>
+      </div>
+    </section>
+  `;
+}
+
+function renderLinhaEventoCatalogo(e) {
+  return `
+    <tr data-evento="${e.codigo}">
+      <td>${escapeHtml(e.codigo)}</td>
+      <td>${escapeHtml(e.canal)}</td>
+      <td>${e.template_meta_nome ? escapeHtml(e.template_meta_nome) : '—'}</td>
+      <td><span class="badge badge-status ${e.template_status === 'aprovado' ? 'badge-status-ativo' : e.template_status === 'rejeitado' ? 'badge-status-inadimplente' : 'badge-status-nao-ativado'}">${TEMPLATE_STATUS_LABELS[e.template_status] || e.template_status}</span></td>
+      <td><span class="badge badge-status ${e.obrigatorio ? 'badge-status-ativo' : 'badge-status-inativo'}">${e.obrigatorio ? 'Obrigatório' : 'Opcional'}</span></td>
+      <td><span class="badge badge-status ${e.ativo ? 'badge-status-ativo' : 'badge-status-inativo'}">${e.ativo ? 'Ativo' : 'Inativo'}</span></td>
+      <td>v${e.versao}</td>
+      <td>${e.obrigatorio ? `≈ R$ ${CUSTO_ESTIMADO_UTILITY_BRL.toFixed(2).replace('.', ',')}` : '—'}</td>
+      <td class="celula-acoes-plano">
+        <button class="btn-secundario btn-tabela" data-acao="editar-evento" data-codigo="${e.codigo}">Editar</button>
+        <button class="btn-secundario btn-tabela" data-acao="auditoria-evento" data-codigo="${e.codigo}">Histórico</button>
+      </td>
+    </tr>
+  `;
+}
+
+function wireEventosEventosCatalogo() {
+  conteudo.querySelectorAll('[data-acao="editar-evento"]').forEach((btn) => {
+    btn.addEventListener('click', () => abrirModalEditarEvento(btn.dataset.codigo));
+  });
+  conteudo.querySelectorAll('[data-acao="auditoria-evento"]').forEach((btn) => {
+    btn.addEventListener('click', () => abrirModalAuditoriaEvento(btn.dataset.codigo));
+  });
+}
+
+function abrirModalEditarEvento(codigo) {
+  const evento = eventosCatalogo.find((e) => e.codigo === codigo);
+  if (!evento) return;
+  abrirModal(
+    `<h3>Editar evento — ${escapeHtml(codigo)}</h3>`,
+    `
+      <div class="modal-erro" id="evento-erro"></div>
+      <label for="evento-template-nome">Nome do template aprovado na Meta</label>
+      <input type="text" id="evento-template-nome" value="${escapeHtml(evento.template_meta_nome || '')}" placeholder="Ex.: people_confirma_cadidatura_1">
+      <div class="pagamento-grid-2col">
+        <div>
+          <label for="evento-template-status">Status do template</label>
+          <select id="evento-template-status">
+            <option value="pendente" ${evento.template_status === 'pendente' ? 'selected' : ''}>Pendente</option>
+            <option value="aprovado" ${evento.template_status === 'aprovado' ? 'selected' : ''}>Aprovado</option>
+            <option value="rejeitado" ${evento.template_status === 'rejeitado' ? 'selected' : ''}>Rejeitado</option>
+          </select>
+        </div>
+        <div>
+          <label for="evento-canal">Canal</label>
+          <select id="evento-canal">
+            <option value="whatsapp" ${evento.canal === 'whatsapp' ? 'selected' : ''}>WhatsApp</option>
+            <option value="email" ${evento.canal === 'email' ? 'selected' : ''}>E-mail</option>
+          </select>
+        </div>
+      </div>
+      <label class="toggle-linha"><span class="toggle-switch"><input type="checkbox" id="evento-obrigatorio" ${evento.obrigatorio ? 'checked' : ''}><span class="toggle-switch-trilho"></span></span> Obrigatório (recrutador nunca pode desativar) — exige template aprovado</label>
+      <label class="toggle-linha"><span class="toggle-switch"><input type="checkbox" id="evento-ativo" ${evento.ativo ? 'checked' : ''}><span class="toggle-switch-trilho"></span></span> Ativo no catálogo</label>
+      <label for="evento-justificativa" style="margin-top:10px; display:block">Justificativa (obrigatória)</label>
+      <textarea id="evento-justificativa" rows="3" placeholder="Por que essa mudança está sendo feita agora?"></textarea>
+      <div class="modal-acoes">
+        <button type="button" class="btn-secundario" id="btn-sair-evento">Sair</button>
+        <button type="button" class="btn-primario" id="btn-salvar-evento">Salvar</button>
+      </div>
+    `
+  );
+  document.getElementById('btn-sair-evento').addEventListener('click', fecharModal);
+  document.getElementById('btn-salvar-evento').addEventListener('click', () => salvarEvento(codigo));
+}
+
+async function salvarEvento(codigo) {
+  const erroEl = document.getElementById('evento-erro');
+  erroEl.textContent = '';
+  const templateMetaNome = document.getElementById('evento-template-nome').value.trim();
+  const templateStatus = document.getElementById('evento-template-status').value;
+  const canal = document.getElementById('evento-canal').value;
+  const obrigatorio = document.getElementById('evento-obrigatorio').checked;
+  const ativo = document.getElementById('evento-ativo').checked;
+  const justificativa = document.getElementById('evento-justificativa').value.trim();
+
+  if (!justificativa) {
+    erroEl.textContent = 'Justificativa é obrigatória.';
+    return;
+  }
+  if (obrigatorio && templateStatus !== 'aprovado') {
+    erroEl.textContent = 'Não é possível marcar como obrigatório sem template aprovado na Meta.';
+    return;
+  }
+
+  const resultado = await api(`/api/eventos-catalogo/${codigo}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ template_meta_nome: templateMetaNome || null, template_status: templateStatus, canal, obrigatorio, ativo, justificativa }),
+  });
+  if (resultado && !resultado.error) {
+    fecharModal();
+    mostrarToast('Evento atualizado.', 'sucesso');
+    await carregar();
+  } else {
+    erroEl.textContent = (resultado && resultado.error) || 'Erro ao salvar evento.';
+  }
+}
+
+function abrirModalAuditoriaEvento(codigo) {
+  abrirModal(`<h3>Histórico — ${escapeHtml(codigo)}</h3>`, '<div id="evento-auditoria-conteudo">Carregando...</div>', { larga: true });
+  carregarAuditoriaEvento(codigo);
+}
+
+async function carregarAuditoriaEvento(codigo) {
+  const resultado = await api(`/api/eventos-catalogo/${codigo}/auditoria`);
+  const alvo = document.getElementById('evento-auditoria-conteudo');
+  if (!alvo) return; // modal já foi fechado antes da resposta chegar
+  const log = (resultado && resultado.log) || [];
+  alvo.innerHTML = `
+    <div class="tabela-wrapper">
+      <table class="tabela-tenants">
+        <thead><tr><th>Justificativa</th><th>Alterado por</th><th>Data</th></tr></thead>
+        <tbody>
+          ${log.length ? log.map((l) => `
+            <tr>
+              <td>${escapeHtml(l.justificativa)}</td>
+              <td>${escapeHtml(l.alterado_por_nome || '—')}</td>
+              <td>${formatarDataHora(l.alterado_em)}</td>
+            </tr>
+          `).join('') : '<tr><td colspan="3">Nenhuma alteração registrada ainda.</td></tr>'}
+        </tbody>
+      </table>
+    </div>
+  `;
 }
 
 carregar();

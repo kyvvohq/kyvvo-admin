@@ -18,6 +18,7 @@ const { registerAdminNumerosProntosRoutes } = require('./routes/admin-numeros-pr
 const { registerAdminUsuariosRoutes } = require('./routes/admin-usuarios');
 const { registerAdminAdministradoresRoutes } = require('./routes/admin-administradores');
 const { registerAdminMensagensRoutes } = require('./routes/admin-mensagens');
+const { registerAdminEventosCatalogoRoutes } = require('./routes/admin-eventos-catalogo');
 
 const PORT = process.env.PORT || 3004;
 
@@ -115,6 +116,7 @@ async function build() {
   registerAdminUsuariosRoutes(fastify, pool);
   registerAdminAdministradoresRoutes(fastify, pool);
   registerAdminMensagensRoutes(fastify, pool);
+  registerAdminEventosCatalogoRoutes(fastify, pool);
 
   return fastify;
 }
