@@ -14,7 +14,7 @@ const ADMIN_INTERNAL_TOKEN = process.env.ADMIN_INTERNAL_TOKEN;
 async function buscarDisparosPeople(fastify, tenantId) {
   if (!ADMIN_INTERNAL_TOKEN) {
     fastify.log.warn('[whatsapp-disparos] ADMIN_INTERNAL_TOKEN não configurado — disparos do People ficam de fora');
-    return [];
+    return { disparos: [], planoChave: null };
   }
   try {
     const query = tenantId ? `?tenant_id=${encodeURIComponent(tenantId)}` : '';
@@ -24,13 +24,16 @@ async function buscarDisparosPeople(fastify, tenantId) {
     });
     if (!res.ok) {
       fastify.log.error(`[whatsapp-disparos] People respondeu ${res.status}`);
-      return [];
+      return { disparos: [], planoChave: null };
     }
     const dados = await res.json();
-    return (dados.disparos || []).map((d) => ({ ...d, produto: 'people' }));
+    return {
+      disparos: (dados.disparos || []).map((d) => ({ ...d, produto: 'people' })),
+      planoChave: dados.plano_chave || null,
+    };
   } catch (erro) {
     fastify.log.error(`[whatsapp-disparos] Falha ao consultar o People: ${erro.message}`);
-    return [];
+    return { disparos: [], planoChave: null };
   }
 }
 
@@ -38,9 +41,9 @@ function registerAdminWhatsappDisparosRoutes(fastify, pool) {
   fastify.get('/api/whatsapp/disparos', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
     const { produto, status, tenant_id: tenantId } = request.query || {};
 
-    const [studioResult, peopleRows] = await Promise.all([
+    const [studioResult, peopleResultado] = await Promise.all([
       pool.query(
-        `select d.id, d.tenant_id, t.nome as tenant_nome, d.telefone_e164, d.template_nome, d.gatilho, d.status, d.criado_em
+        `select d.id, d.tenant_id, t.nome as tenant_nome, t.plano, d.telefone_e164, d.template_nome, d.gatilho, d.status, d.criado_em
          from whatsapp_disparos d
          left join tenants t on t.id = d.tenant_id
          ${tenantId ? 'where d.tenant_id = $1' : ''}
@@ -51,6 +54,7 @@ function registerAdminWhatsappDisparosRoutes(fastify, pool) {
       buscarDisparosPeople(fastify, tenantId),
     ]);
     const studioRows = studioResult.rows.map((row) => ({ ...row, produto: 'studio' }));
+    const peopleRows = peopleResultado.disparos;
 
     // tenant_nome do People precisa ser resolvido aqui — o banco isolado dele
     // não tem tabela `tenants` local (referência solta), mas o tenant_id é o
@@ -71,7 +75,32 @@ function registerAdminWhatsappDisparosRoutes(fastify, pool) {
     const total = todos.length;
     const realizados = todos.filter((d) => d.status === 'enviado').length;
 
-    return { total, realizados, disparos: todos.slice(0, 300) };
+    // Uso do mês vs. limite do plano (US: pedido do Bruno pra ver e travar
+    // por cliente) — só calculado quando um cliente específico foi filtrado.
+    // Studio: `tenants.plano` (mesmo banco). People: `plano_chave` que a
+    // rota interna já devolveu, resolvido acima. `planos` é a mesma tabela
+    // pros dois produtos, sempre consultável direto por este admin.
+    let limitePlano = null;
+    if (tenantId) {
+      const planoChave = studioResult.rows[0]?.plano || peopleResultado.planoChave || null;
+      if (planoChave) {
+        const { rows: planoRows } = await pool.query(
+          'select chave, nome, limite_disparos from planos where chave = $1',
+          [planoChave]
+        );
+        if (planoRows[0]) {
+          const inicioDoMes = new Date(); inicioDoMes.setDate(1); inicioDoMes.setHours(0, 0, 0, 0);
+          const usadoMesAtual = todos.filter((d) => d.status === 'enviado' && new Date(d.criado_em) >= inicioDoMes).length;
+          limitePlano = {
+            planoNome: planoRows[0].nome,
+            limite: planoRows[0].limite_disparos,
+            usadoMesAtual,
+          };
+        }
+      }
+    }
+
+    return { total, realizados, disparos: todos.slice(0, 300), limitePlano };
   });
 }
 
