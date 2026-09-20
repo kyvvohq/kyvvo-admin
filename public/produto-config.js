@@ -373,6 +373,9 @@ function abrirModalEditarPlanoPeople(chave) {
         <input type="number" step="0.01" min="1" id="plano-people-preco" value="${plano.preco_mensal}">
         <label>Limites de uso</label>
         <div class="pagamento-grid-2col">${camposLimites}</div>
+        <label for="plano-people-limite-disparos">Limite de disparos de automação (WhatsApp)</label>
+        <input type="number" step="1" min="0" id="plano-people-limite-disparos" value="${plano.limite_disparos ?? ''}" placeholder="ilimitado">
+        <div class="ajuda" style="color:var(--muted-strong);font-size:12px;margin-top:-8px;margin-bottom:12px">Diferente de "Candidatos notificados/mês" acima — este é o limite mensal das mensagens automáticas do fluxo de vaga (Automações &gt; Disparos), a mesma trava usada no Studio.</div>
         <label class="toggle-linha"><span class="toggle-switch"><input type="checkbox" id="plano-people-ativo" ${plano.ativo ? 'checked' : ''}><span class="toggle-switch-trilho"></span></span> Ativo</label>
         <p class="modal-texto">⚠️ Alterações de preço afetam apenas novas assinaturas.</p>
         <div class="modal-acoes">
@@ -398,6 +401,7 @@ async function salvarPlanoPeople(chave) {
     const v = document.getElementById(`plano-people-limite-${c}`).value.trim();
     return [c, v === '' ? null : Number(v)];
   }));
+  const limiteDisparosBruto = document.getElementById('plano-people-limite-disparos').value.trim();
   const erroEl = document.getElementById('plano-people-erro');
   erroEl.textContent = '';
   if (!nome) { erroEl.textContent = 'Nome do plano não pode ficar em branco.'; return; }
@@ -405,7 +409,10 @@ async function salvarPlanoPeople(chave) {
 
   const resultado = await api(`/api/configuracoes/planos/${chave}`, {
     method: 'PATCH',
-    body: JSON.stringify({ nome, descricao, preco_mensal: Number(precoMensal), ativo, limites }),
+    body: JSON.stringify({
+      nome, descricao, preco_mensal: Number(precoMensal), ativo, limites,
+      limite_disparos: limiteDisparosBruto === '' ? null : Number(limiteDisparosBruto),
+    }),
   });
   if (resultado && !resultado.error) {
     fecharModal();
