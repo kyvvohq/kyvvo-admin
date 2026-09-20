@@ -164,11 +164,17 @@ const ABAS = [
   ...(PRODUTO === 'people' ? [{ id: 'eventos', label: 'Eventos' }] : []),
 ];
 
+// Visual do componente data-ds-abas (@kyvvohq/design-system v2.7.0), sem o
+// atributo em si: cada aba chama seu próprio render (renderAbaPlano/
+// renderAbaConfigLista/...) com wiring próprio (wireEventos*), reconstruído
+// do zero a cada troca — trocar pro modelo de painéis simultâneos do DS
+// exigiria auditar cada wireEventos* pra não colidir entre painéis. Só o
+// estilo da lista de abas vem do DS por enquanto.
 function render() {
   conteudo.innerHTML = `
     <h2 class="titulo-detalhe">${PRODUTO_LABEL}</h2>
-    <div class="subtabs">
-      ${ABAS.map((a) => `<div class="tab ${estado.aba === a.id ? 'active' : ''}" data-aba="${a.id}">${a.label}</div>`).join('')}
+    <div class="ds-abas-lista">
+      ${ABAS.map((a) => `<button type="button" class="ds-aba" aria-selected="${estado.aba === a.id ? 'true' : 'false'}" data-aba="${a.id}">${a.label}</button>`).join('')}
     </div>
     <div id="conteudo-aba"></div>
   `;
