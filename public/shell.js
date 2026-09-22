@@ -120,86 +120,124 @@ function slugRotulo(texto) {
     .replace(/[^a-z0-9]+/g, '-');
 }
 
-// Mesma convenção de grupo expansível do painel do tenant (app.js:
-// .menu-item-grupo + .menu-chevron + .menu-submenu, classes .aberto/
-// .expandido/.tem-filho-ativo já vêm do style.css compartilhado) —
-// adaptada aqui pra navegação real por <a href> (cada tela é um .html
-// próprio, sem router client-side como o painel do tenant tem).
+// Componente data-ds-menu do @kyvvohq/design-system (v2.6.0) — navegação
+// real por <a href> (cada tela é um .html próprio, sem router client-side
+// como o painel do tenant tem). O botão de grupo (.ds-menu-grupo-botao) não
+// tem estilo base próprio no components.css (só os estados aria-expanded/
+// aria-selected) — sempre precisa vir com .ds-menu-link junto, que é quem
+// reseta background/border/width (achado/corrigido primeiro no Studio e no
+// People, mesmo bug).
+function iconeSpan(nome) {
+  const span = document.createElement('span');
+  span.className = 'ds-menu-icone';
+  span.appendChild(svgIcone(nome, 'menu-icon'));
+  return span;
+}
+function rotuloSpan(texto) {
+  const span = document.createElement('span');
+  span.className = 'ds-menu-rotulo';
+  span.textContent = texto;
+  return span;
+}
 function montarMenu() {
   const nav = document.getElementById('menu-lateral');
   if (!nav) return; // login.html não tem sidebar
   const caminhoAtual = window.location.pathname;
-  nav.innerHTML = '';
+  const lista = document.createElement('ul');
+  lista.className = 'ds-menu-lista';
 
   NAV_TREE.forEach((entrada) => {
+    const li = document.createElement('li');
+
     if (entrada.tipo === 'item') {
       const a = document.createElement('a');
-      a.className = 'menu-item';
+      a.className = 'ds-menu-link';
       a.href = entrada.href;
-      a.dataset.icon = entrada.icon;
-      a.textContent = entrada.label;
-      if (caminhoAtual === entrada.href) a.classList.add('active');
-      nav.appendChild(a);
+      a.append(iconeSpan(entrada.icon), rotuloSpan(entrada.label));
+      if (caminhoAtual === entrada.href) {
+        a.classList.add('ds-menu-link-ativo');
+        a.setAttribute('aria-current', 'page');
+      }
+      li.appendChild(a);
+      lista.appendChild(li);
       return;
     }
 
+    li.className = 'ds-menu-grupo';
     const grupoId = `menu-grupo-${slugRotulo(entrada.label)}`;
-    const toggle = document.createElement('div');
-    toggle.className = 'menu-item-grupo';
-    toggle.dataset.icon = entrada.icon;
-    toggle.dataset.submenu = grupoId;
-    const rotulo = document.createElement('span');
-    rotulo.textContent = entrada.label;
-    const chevron = document.createElement('span');
-    chevron.className = 'menu-chevron';
-    chevron.setAttribute('aria-hidden', 'true');
-    toggle.append(rotulo, chevron);
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'ds-menu-link ds-menu-grupo-botao';
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', grupoId);
+    const seta = document.createElement('span');
+    seta.className = 'ds-menu-seta';
+    seta.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+    toggle.append(iconeSpan(entrada.icon), rotuloSpan(entrada.label), seta);
 
-    const submenu = document.createElement('div');
-    submenu.className = 'menu-submenu';
+    const submenu = document.createElement('ul');
+    submenu.className = 'ds-menu-sub';
     submenu.id = grupoId;
 
     let temFilhoAtivo = false;
     entrada.filhos.forEach((filho) => {
+      const subLi = document.createElement('li');
       if (filho.pendente) {
         const span = document.createElement('span');
-        span.className = 'menu-item menu-item-pendente';
+        span.className = 'ds-menu-sublink ds-menu-sublink-pendente';
         span.textContent = filho.label;
         span.title = 'Em desenvolvimento';
-        submenu.appendChild(span);
+        subLi.appendChild(span);
+        submenu.appendChild(subLi);
         return;
       }
       const a = document.createElement('a');
-      a.className = 'menu-item';
+      a.className = 'ds-menu-sublink';
       a.href = filho.href;
       a.textContent = filho.label;
       if (filho.externo) { a.target = '_blank'; a.rel = 'noopener'; }
       if (caminhoAtual === filho.href) {
-        a.classList.add('active');
+        a.classList.add('ds-menu-sublink-ativo');
+        a.setAttribute('aria-current', 'page');
         temFilhoAtivo = true;
       }
-      submenu.appendChild(a);
+      subLi.appendChild(a);
+      submenu.appendChild(subLi);
     });
 
     if (temFilhoAtivo) {
-      toggle.classList.add('tem-filho-ativo', 'expandido');
-      submenu.classList.add('aberto');
+      toggle.classList.add('tem-filho-ativo');
+      toggle.setAttribute('aria-expanded', 'true');
     }
 
-    toggle.addEventListener('click', () => {
-      submenu.classList.toggle('aberto');
-      toggle.classList.toggle('expandido');
-    });
-
-    nav.append(toggle, submenu);
+    li.append(toggle, submenu);
+    lista.appendChild(li);
   });
 
-  nav.querySelectorAll('.menu-item[data-icon], .menu-item-grupo[data-icon]').forEach((item) => {
-    item.insertBefore(svgIcone(item.dataset.icon, 'menu-icon'), item.firstChild);
-  });
+  // Só troca a <ul> em si — nav.innerHTML = '' apagaria também o
+  // .ds-menu-topo (logo + botão de recolher), que é estático no HTML.
+  const listaAntiga = nav.querySelector('.ds-menu-lista');
+  if (listaAntiga) listaAntiga.replaceWith(lista);
+  else nav.appendChild(lista);
 }
 
 montarMenu();
+
+// Recolher/expandir a sidebar (só ícones ↔ 248px) — o admin nunca teve essa
+// opção antes (só o CSS herdada do painel do tenant, sem botão nenhum);
+// ganha de graça com o componente data-ds-menu do DS (v2.6.0). O clique em
+// si já é tratado pelo components.js; aqui só aplicamos o estado salvo antes
+// dele hidratar (evita flash) e persistimos a escolha via o evento que ele
+// dispara.
+const menuLateral = document.getElementById('menu-lateral');
+if (menuLateral) {
+  if (localStorage.getItem('kyvvo_admin_sidebar_oculta') === '1') {
+    menuLateral.setAttribute('data-ds-menu-recolhido', '');
+  }
+  menuLateral.addEventListener('ds-menu-alternar', (e) => {
+    localStorage.setItem('kyvvo_admin_sidebar_oculta', e.detail.recolhido ? '1' : '0');
+  });
+}
 
 // Tema: o painel (tenant + admin) adotou o layout claro do Kyvvo People,
 // modo único, sem toggle. Os tokens vêm do @kyvvohq/design-system (:root =
