@@ -11,15 +11,28 @@ const githubDeployService = require('../lib/github-deploy-service');
 // Vincula um número "de casa" (sem tenant) da Meta a um produto Kyvvo —
 // escreve o(s) parâmetro(s) certo(s) no SSM e dispara o redeploy dos
 // serviços afetados (mesma ação que o Bruno fazia na mão: escrever o SSM +
-// `docker compose up -d --force-recreate` de cada serviço). Só sabe fazer
-// "people" por ora (único caso real hoje) — um produto novo é uma entrada
-// aqui, não uma rota nova.
+// `docker compose up -d --force-recreate` de cada serviço). Um produto novo
+// é uma entrada aqui, não uma rota nova.
+//
+// CRM (2026-09-24): diferente do People (número único pro produto inteiro),
+// o bot do CRM é por TENANT (ex.: Basic 3D Print) — este botão só resolve o
+// roteamento phone_number_id -> produto (platform + o próprio serviço crm);
+// o vínculo phone_number_id -> tenant_id específico ainda é feito à mão
+// direto no banco do CRM (crm_whatsapp_numeros), Fase 1 de onboarding
+// manual (ver docs/DECISOES-PENDENTES.md do kyvvo-crm).
 const PRODUTOS_SUPORTADOS = {
   people: {
     parametrosSsm: ['/kyvvo/platform/PEOPLE_PHONE_NUMBER_ID', '/kyvvo/people/META_PHONE_NUMBER_ID'],
     deploys: [
       { repo: 'kyvvo-platform', ref: 'main' },
       { repo: 'kyvvo-people', ref: 'release' },
+    ],
+  },
+  crm: {
+    parametrosSsm: ['/kyvvo/platform/CRM_PHONE_NUMBER_ID', '/kyvvo/crm/META_PHONE_NUMBER_ID'],
+    deploys: [
+      { repo: 'kyvvo-platform', ref: 'main' },
+      { repo: 'kyvvo-crm', ref: 'release' },
     ],
   },
 };

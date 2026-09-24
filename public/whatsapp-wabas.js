@@ -106,6 +106,7 @@ function renderNumeros(waba) {
                   <select data-vincular-select style="width:130px">
                     <option value="">Vincular a...</option>
                     <option value="people">People</option>
+                    <option value="crm">CRM</option>
                   </select>
                   <button class="btn-tabela" data-vincular="${escapeHtml(n.id)}">Vincular</button>
                 </div>
