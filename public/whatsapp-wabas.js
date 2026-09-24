@@ -102,6 +102,13 @@ function renderNumeros(waba) {
                   <input type="tel" placeholder="5534999999999" data-teste-destino style="width:130px">
                   <button class="btn-tabela" data-teste="${escapeHtml(n.id)}">Enviar teste</button>
                 </div>
+                <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
+                  <select data-vincular-select style="width:130px">
+                    <option value="">Vincular a...</option>
+                    <option value="people">People</option>
+                  </select>
+                  <button class="btn-tabela" data-vincular="${escapeHtml(n.id)}">Vincular</button>
+                </div>
               ` : ''}
               <div class="vazio-inline" data-registrar-msg style="margin-top:4px"></div>
             </td>
@@ -165,6 +172,40 @@ conteudo.addEventListener('click', async (e) => {
   msgEl.textContent = resultado && resultado.ok
     ? '✅ Enviado — confira o WhatsApp do número de destino.'
     : `❌ ${(resultado && resultado.error) || 'Falha ao enviar.'}`;
+});
+
+// Vincula o número a um produto — grava no SSM + redeploya os serviços
+// afetados sozinho (ver PRODUTOS_SUPORTADOS em
+// routes/admin-whatsapp-meta.js). Ainda depende de duas peças de infra que
+// talvez não estejam configuradas (permissão de SSM na EC2,
+// GITHUB_DEPLOY_TOKEN) — o erro vem claro da API quando faltar alguma.
+conteudo.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-vincular]');
+  if (!btn) return;
+  const phoneNumberId = btn.dataset.vincular;
+  const td = btn.closest('td');
+  const produto = td.querySelector('[data-vincular-select]').value;
+  const msgEl = td.querySelector('[data-registrar-msg]');
+  if (!produto) {
+    msgEl.textContent = '❌ Escolha um produto pra vincular.';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Vinculando...';
+  msgEl.textContent = '';
+  const resultado = await api(`/api/whatsapp/numeros/${phoneNumberId}/vincular-produto`, {
+    method: 'POST',
+    body: JSON.stringify({ produto }),
+  });
+  btn.disabled = false;
+  btn.textContent = 'Vincular';
+  if (resultado && resultado.ok) {
+    msgEl.textContent = '✅ Vinculado — deploy dos serviços disparado.';
+  } else if (resultado && resultado.aviso) {
+    msgEl.textContent = `⚠️ ${resultado.aviso}`;
+  } else {
+    msgEl.textContent = `❌ ${(resultado && resultado.error) || 'Falha ao vincular.'}`;
+  }
 });
 
 function renderWaba(w) {
