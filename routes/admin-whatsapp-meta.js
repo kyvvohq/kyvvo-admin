@@ -84,6 +84,26 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
     }
   });
 
+  // Envia o template "hello_world" (aprovado por padrão em toda WABA) pra um
+  // número de teste — confirma que um número recém-registrado (ver rota
+  // acima) está mesmo operacional na Cloud API, sem depender de nenhum
+  // tenant/fluxo de produto.
+  fastify.post('/api/whatsapp/numeros/:phoneNumberId/teste', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    if (!process.env.META_WHATSAPP_TOKEN) {
+      return reply.code(400).send({ error: 'META_WHATSAPP_TOKEN não configurado no servidor.' });
+    }
+    const { numeroDestino } = request.body || {};
+    if (!numeroDestino) {
+      return reply.code(400).send({ error: 'Informe o número de destino (E.164, ex.: 5534999999999).' });
+    }
+    try {
+      const resultado = await metaWhatsappService.enviarMensagemTeste(request.params.phoneNumberId, numeroDestino);
+      return { ok: true, resultado };
+    } catch (erro) {
+      return reply.code(502).send({ error: `Falha ao enviar teste: ${erro.message}` });
+    }
+  });
+
   // Templates de mensagem de todas as WABAs, agregados — cada linha marcada
   // com de qual WABA/tenant veio. Mesmo raciocínio de "status sempre da
   // Meta, nunca de cópia local": não existe tabela de templates aqui.
