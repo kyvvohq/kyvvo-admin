@@ -84,21 +84,52 @@ function renderNumeros(waba) {
   }
   return `
     <table class="tabela-tenants" style="margin-top: 8px;">
-      <thead><tr><th>Número</th><th>Nome verificado</th><th>Qualidade</th><th>Verificação</th><th>Status</th></tr></thead>
+      <thead><tr><th>Número</th><th>Nome verificado</th><th>Qualidade</th><th>Verificação</th><th>Status</th><th>Ações</th></tr></thead>
       <tbody>
         ${waba.numeros.map((n) => `
-          <tr>
+          <tr data-numero="${escapeHtml(n.id || '')}">
             <td>${escapeHtml(n.numeroExibido || '—')}${n.id ? `<br><small style="font-family:monospace;color:var(--muted)">${escapeHtml(n.id)}</small>` : ''}</td>
             <td>${escapeHtml(n.nomeVerificado || '—')}</td>
             <td>${badgeStatus(n.qualidade)}</td>
             <td>${badgeStatus(n.statusVerificacao)}</td>
             <td>${badgeStatus(n.status)}</td>
+            <td>
+              ${n.id && n.status !== 'CONNECTED'
+                ? `<button class="btn-tabela" data-registrar="${escapeHtml(n.id)}">Registrar na Cloud API</button>`
+                : ''}
+              <div class="vazio-inline" data-registrar-msg style="margin-top:4px"></div>
+            </td>
           </tr>
         `).join('')}
       </tbody>
     </table>
   `;
 }
+
+// Número "de casa" da Kyvvo (não vinculado a nenhum tenant, ex. o número do
+// People) só passa pelo fluxo de Embedded Signup quando é de UM TENANT — o
+// que a Meta Business Suite adiciona direto pra Kyvvo fica "PENDING" até
+// alguém chamar essa 2ª etapa (registrarNumero, mesma chamada que o
+// Embedded Signup do tenant já faz sozinho). Delegado no #conteudo porque a
+// tabela inteira é recriada a cada carregar().
+conteudo.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-registrar]');
+  if (!btn) return;
+  const phoneNumberId = btn.dataset.registrar;
+  const msgEl = btn.closest('td').querySelector('[data-registrar-msg]');
+  btn.disabled = true;
+  btn.textContent = 'Registrando...';
+  msgEl.textContent = '';
+  const resultado = await api(`/api/whatsapp/numeros/${phoneNumberId}/registrar`, { method: 'POST' });
+  if (resultado && resultado.ok) {
+    msgEl.textContent = '✅ Registrado — atualizando...';
+    carregar();
+  } else {
+    btn.disabled = false;
+    btn.textContent = 'Registrar na Cloud API';
+    msgEl.textContent = `❌ ${(resultado && resultado.error) || 'Falha ao registrar.'}`;
+  }
+});
 
 function renderWaba(w) {
   return `

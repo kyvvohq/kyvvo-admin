@@ -65,6 +65,25 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
     };
   });
 
+  // Registra um número da Meta pra uso na Cloud API (2ª etapa, PIN de
+  // verificação — mesma chamada que o Embedded Signup do tenant já faz
+  // automaticamente em kyvvo-studio/routes/whatsapp-config.js). Precisa
+  // disso pra número "de casa" da Kyvvo (não vinculado a nenhum tenant, ex.
+  // o número do People) que foi só adicionado/verificado na Meta Business
+  // Suite, sem passar pelo fluxo de Embedded Signup — fica "PENDING" até
+  // alguém chamar isso uma vez.
+  fastify.post('/api/whatsapp/numeros/:phoneNumberId/registrar', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    if (!process.env.META_WHATSAPP_TOKEN) {
+      return reply.code(400).send({ error: 'META_WHATSAPP_TOKEN não configurado no servidor.' });
+    }
+    try {
+      const resultado = await metaWhatsappService.registrarNumero(request.params.phoneNumberId);
+      return { ok: true, resultado };
+    } catch (erro) {
+      return reply.code(502).send({ error: `Falha ao registrar na Meta: ${erro.message}` });
+    }
+  });
+
   // Templates de mensagem de todas as WABAs, agregados — cada linha marcada
   // com de qual WABA/tenant veio. Mesmo raciocínio de "status sempre da
   // Meta, nunca de cópia local": não existe tabela de templates aqui.
