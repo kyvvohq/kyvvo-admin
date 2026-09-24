@@ -120,7 +120,10 @@ conteudo.addEventListener('click', async (e) => {
   btn.disabled = true;
   btn.textContent = 'Registrando...';
   msgEl.textContent = '';
-  const resultado = await api(`/api/whatsapp/numeros/${phoneNumberId}/registrar`, { method: 'POST' });
+  // body: '{}' — a api() sempre manda Content-Type: application/json; sem
+  // corpo nenhum o parser JSON padrão do Fastify rejeita com 400
+  // (FST_ERR_CTP_EMPTY_JSON_BODY) antes mesmo de chegar na rota.
+  const resultado = await api(`/api/whatsapp/numeros/${phoneNumberId}/registrar`, { method: 'POST', body: '{}' });
   if (resultado && resultado.ok) {
     msgEl.textContent = '✅ Registrado — atualizando...';
     carregar();
