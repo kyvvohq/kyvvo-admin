@@ -347,24 +347,6 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
   }
 }
 
-.subtabs {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 16px 24px 0;
-}
-
-.tab {
-  padding: 8px 16px;
-  border-radius: 8px;
-  cursor: pointer;
-  color: var(--muted-strong);
-  font-size: 14px;
-}
-
-.tab.active { background: var(--accent); color: white; }
-
 /* .ds-aba (componente de abas do @kyvvohq/design-system, v2.7.0) não reseta
    width/margin — herda o `button { width: 100%; margin-top: 24px }` global
    deste arquivo (pensado pra botão de formulário) e cada aba vira uma barra
