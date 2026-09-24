@@ -97,6 +97,12 @@ function renderNumeros(waba) {
               ${n.id && n.status !== 'CONNECTED'
                 ? `<button class="btn-tabela" data-registrar="${escapeHtml(n.id)}">Registrar na Cloud API</button>`
                 : ''}
+              ${n.id && n.status === 'CONNECTED' ? `
+                <div style="display:flex;gap:4px;align-items:center">
+                  <input type="tel" placeholder="5534999999999" data-teste-destino style="width:130px">
+                  <button class="btn-tabela" data-teste="${escapeHtml(n.id)}">Enviar teste</button>
+                </div>
+              ` : ''}
               <div class="vazio-inline" data-registrar-msg style="margin-top:4px"></div>
             </td>
           </tr>
@@ -132,6 +138,33 @@ conteudo.addEventListener('click', async (e) => {
     btn.textContent = 'Registrar na Cloud API';
     msgEl.textContent = `❌ ${(resultado && resultado.error) || 'Falha ao registrar.'}`;
   }
+});
+
+// "hello_world" pra um número de teste — confirma que o número recém
+// registrado está mesmo operacional na Cloud API.
+conteudo.addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-teste]');
+  if (!btn) return;
+  const phoneNumberId = btn.dataset.teste;
+  const td = btn.closest('td');
+  const numeroDestino = (td.querySelector('[data-teste-destino]').value || '').trim();
+  const msgEl = td.querySelector('[data-registrar-msg]');
+  if (!numeroDestino) {
+    msgEl.textContent = '❌ Informe o número de destino (E.164, ex.: 5534999999999).';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+  msgEl.textContent = '';
+  const resultado = await api(`/api/whatsapp/numeros/${phoneNumberId}/teste`, {
+    method: 'POST',
+    body: JSON.stringify({ numeroDestino }),
+  });
+  btn.disabled = false;
+  btn.textContent = 'Enviar teste';
+  msgEl.textContent = resultado && resultado.ok
+    ? '✅ Enviado — confira o WhatsApp do número de destino.'
+    : `❌ ${(resultado && resultado.error) || 'Falha ao enviar.'}`;
 });
 
 function renderWaba(w) {
