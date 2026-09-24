@@ -5,6 +5,24 @@
 // WABA (JOIN por meta_waba_id em tenants/numeros_prontos) — rótulo, não
 // status; sem ele o admin só veria um ID da Meta sem contexto nenhum.
 const metaWhatsappService = require('../lib/meta-whatsapp-service');
+const awsSsmService = require('../lib/aws-ssm-service');
+const githubDeployService = require('../lib/github-deploy-service');
+
+// Vincula um número "de casa" (sem tenant) da Meta a um produto Kyvvo —
+// escreve o(s) parâmetro(s) certo(s) no SSM e dispara o redeploy dos
+// serviços afetados (mesma ação que o Bruno fazia na mão: escrever o SSM +
+// `docker compose up -d --force-recreate` de cada serviço). Só sabe fazer
+// "people" por ora (único caso real hoje) — um produto novo é uma entrada
+// aqui, não uma rota nova.
+const PRODUTOS_SUPORTADOS = {
+  people: {
+    parametrosSsm: ['/kyvvo/platform/PEOPLE_PHONE_NUMBER_ID', '/kyvvo/people/META_PHONE_NUMBER_ID'],
+    deploys: [
+      { repo: 'kyvvo-platform', ref: 'main' },
+      { repo: 'kyvvo-people', ref: 'release' },
+    ],
+  },
+};
 
 function registerAdminWhatsappMetaRoutes(fastify, pool) {
   async function mapaWabaParaTenant() {
@@ -102,6 +120,42 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
     } catch (erro) {
       return reply.code(502).send({ error: `Falha ao enviar teste: ${erro.message}` });
     }
+  });
+
+  // Ver PRODUTOS_SUPORTADOS/comentário no topo do arquivo. Grava no SSM
+  // primeiro; só dispara os deploys se TODOS os parâmetros gravaram — nunca
+  // redeploya com metade do estado novo, metade do velho.
+  fastify.post('/api/whatsapp/numeros/:phoneNumberId/vincular-produto', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    const { produto } = request.body || {};
+    const config = PRODUTOS_SUPORTADOS[produto];
+    if (!config) {
+      return reply.code(400).send({ error: `Produto "${produto}" não suportado. Válidos: ${Object.keys(PRODUTOS_SUPORTADOS).join(', ')}` });
+    }
+    const { phoneNumberId } = request.params;
+
+    try {
+      for (const nomeParametro of config.parametrosSsm) {
+        await awsSsmService.escreverParametro(nomeParametro, phoneNumberId);
+      }
+    } catch (erro) {
+      return reply.code(502).send({ error: `Falha ao gravar no SSM (nenhum deploy disparado): ${erro.message}` });
+    }
+
+    const falhasDeploy = [];
+    for (const d of config.deploys) {
+      try {
+        await githubDeployService.dispararDeploy(d.repo, d.ref);
+      } catch (erro) {
+        falhasDeploy.push(`${d.repo}: ${erro.message}`);
+      }
+    }
+
+    return {
+      ok: falhasDeploy.length === 0,
+      aviso: falhasDeploy.length
+        ? `Parâmetros gravados no SSM, mas falhou disparar o deploy de: ${falhasDeploy.join('; ')} — precisa rodar "gh workflow run" manualmente pra esse(s) repo(s).`
+        : null,
+    };
   });
 
   // Templates de mensagem de todas as WABAs, agregados — cada linha marcada
