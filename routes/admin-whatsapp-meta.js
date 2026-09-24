@@ -52,6 +52,7 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
           tenantId: tenant ? tenant.tenantId : null,
           tenantNome: tenant ? tenant.tenantNome : null,
           numeros: Array.isArray(numeros) ? numeros.map((n) => ({
+            id: n.id || null,
             numeroExibido: n.display_phone_number || null,
             nomeVerificado: n.verified_name || null,
             qualidade: n.quality_rating || null,
