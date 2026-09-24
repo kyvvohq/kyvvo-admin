@@ -98,6 +98,14 @@ async function build() {
   // A raiz abre a tela de login (o nginx do host admin não reescreve mais nada).
   fastify.get('/', async (request, reply) => reply.redirect('/login.html'));
 
+  // Página cheia de detalhe do tenant (/tenants/:id) — o botão "Gerenciar
+  // tenant" do drawer (public/app.js) navega direto pra cá, e
+  // tenant-detalhe.js lê o id do ÚLTIMO SEGMENTO da URL (idDaUrl()), não de
+  // querystring — por isso precisa dessa rota servindo o HTML sem redirect
+  // nem rewrite, preservando o :id na URL. Sem isso, cada clique em
+  // "Gerenciar tenant" caía num 404 puro do Fastify (rota nunca existiu).
+  fastify.get('/tenants/:id', async (request, reply) => reply.sendFile('tenant-detalhe.html'));
+
   // Versão do backend rodando — version.json gravado pelo workflow de deploy.
   fastify.get('/api/versao', { preHandler: [fastify.authenticateAdmin] }, async () => {
     try {
