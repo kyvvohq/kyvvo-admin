@@ -88,7 +88,7 @@ function renderNumeros(waba) {
       <tbody>
         ${waba.numeros.map((n) => `
           <tr>
-            <td>${escapeHtml(n.numeroExibido || '—')}</td>
+            <td>${escapeHtml(n.numeroExibido || '—')}${n.id ? `<br><small style="font-family:monospace;color:var(--muted)">${escapeHtml(n.id)}</small>` : ''}</td>
             <td>${escapeHtml(n.nomeVerificado || '—')}</td>
             <td>${badgeStatus(n.qualidade)}</td>
             <td>${badgeStatus(n.statusVerificacao)}</td>
