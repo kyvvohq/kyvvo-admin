@@ -228,7 +228,10 @@ function render(dados) {
     conteudo.innerHTML = `
       <h2 class="titulo-detalhe">WABAs</h2>
       <div class="vazio">META_WHATSAPP_TOKEN não configurado no servidor — sem credencial não dá pra consultar a Meta.</div>
+      ${secaoCrmNumerosHtml()}
     `;
+    ligarEventosCrmNumeros();
+    carregarCrmNumeros();
     return;
   }
 
@@ -237,8 +240,137 @@ function render(dados) {
     <p class="vazio-inline">Contas do WhatsApp Business que a Kyvvo gerencia, consultadas ao vivo na Meta — aprovação, números e qualidade nunca vêm de cópia local.</p>
     <button class="btn-primario btn-tabela" id="btn-atualizar" style="margin: 8px 0 16px;">🔄 Atualizar</button>
     ${dados.wabas.length ? dados.wabas.map(renderWaba).join('') : '<div class="vazio">Nenhuma WABA atribuída ao Usuário do Sistema da Kyvvo ainda.</div>'}
+    ${secaoCrmNumerosHtml()}
   `;
   document.getElementById('btn-atualizar').addEventListener('click', carregar);
+  ligarEventosCrmNumeros();
+  carregarCrmNumeros();
+}
+
+// ---------- Kyvvo CRM — WhatsApp por cliente ----------
+// Separado do resto da tela porque não vem da Meta ao vivo feito o resto —
+// é uma tabela de configuração do próprio CRM (crm_whatsapp_numeros),
+// buscada via chamada interna (ver routes/admin-crm-whatsapp-numeros.js).
+// O "Vincular a produto" acima só resolve o roteamento platform -> serviço
+// do CRM inteiro; esta seção resolve QUAL CLIENTE é dono do número já
+// roteado (ver comentário no topo do arquivo de rotas pra limitação atual
+// de só um cliente por vez).
+let crmTenants = [];
+
+function secaoCrmNumerosHtml() {
+  return `
+    <section class="secao-detalhe" id="secao-crm-numeros">
+      <h3>Kyvvo CRM — WhatsApp por cliente</h3>
+      <p class="vazio-inline">
+        Qual cliente do CRM é o dono do número de atendimento (bot de WhatsApp). Hoje só um número por vez chega até o
+        serviço do CRM (ver "Vincular a produto" acima) — esta tabela decide de qual cliente ele é.
+      </p>
+      <table class="tabela-tenants" style="margin-top: 8px;">
+        <thead><tr><th>Número</th><th>Cliente (CRM)</th><th>Ações</th></tr></thead>
+        <tbody id="crm-numeros-corpo"><tr><td colspan="3" class="vazio-inline">Carregando...</td></tr></tbody>
+      </table>
+      <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:12px;">
+        <input type="text" id="crm-novo-phone-id" placeholder="phone_number_id (copie da tabela de números acima)" style="width:260px">
+        <input type="text" id="crm-novo-numero-exibido" placeholder="número exibido (opcional)" style="width:170px">
+        <select id="crm-novo-tenant" style="width:200px"><option value="">Cliente...</option></select>
+        <button class="btn-tabela" id="crm-novo-vincular">Vincular</button>
+      </div>
+      <div class="vazio-inline" id="crm-numeros-msg" style="margin-top:6px"></div>
+    </section>
+  `;
+}
+
+async function carregarCrmNumeros() {
+  const corpo = document.getElementById('crm-numeros-corpo');
+  const [numerosResp, tenantsResp] = await Promise.all([
+    api('/api/whatsapp/crm-numeros'),
+    api('/api/whatsapp/crm-tenants'),
+  ]);
+  crmTenants = (tenantsResp && tenantsResp.tenants) || [];
+  const opcoesTenant = crmTenants.map((t) => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.nome)}</option>`).join('');
+  document.getElementById('crm-novo-tenant').innerHTML = `<option value="">Cliente...</option>${opcoesTenant}`;
+
+  if (!numerosResp) { corpo.innerHTML = '<tr><td colspan="3" class="vazio-inline">Falha ao consultar o CRM.</td></tr>'; return; }
+  const numeros = numerosResp.numeros || [];
+  corpo.innerHTML = numeros.length ? numeros.map((n) => `
+    <tr data-crm-numero="${escapeHtml(n.phone_number_id)}">
+      <td>${escapeHtml(n.numero_exibido || '—')}<br><small style="font-family:monospace;color:var(--muted)">${escapeHtml(n.phone_number_id)}</small></td>
+      <td><select data-crm-trocar-tenant>${crmTenants.map((t) => `<option value="${escapeHtml(t.id)}" ${t.id === n.tenant_id ? 'selected' : ''}>${escapeHtml(t.nome)}</option>`).join('')}</select></td>
+      <td>
+        <button class="btn-tabela" data-crm-salvar-tenant="${escapeHtml(n.phone_number_id)}">Salvar</button>
+        <button class="btn-tabela" data-crm-desvincular="${escapeHtml(n.phone_number_id)}">Desvincular</button>
+      </td>
+    </tr>
+  `).join('') : '<tr><td colspan="3" class="vazio-inline">Nenhum número vinculado a um cliente do CRM ainda.</td></tr>';
+}
+
+function ligarEventosCrmNumeros() {
+  const secao = document.getElementById('secao-crm-numeros');
+  if (!secao || secao.dataset.ligado) return;
+  secao.dataset.ligado = '1';
+
+  const msgEl = () => document.getElementById('crm-numeros-msg');
+
+  secao.addEventListener('click', async (e) => {
+    const salvar = e.target.closest('[data-crm-salvar-tenant]');
+    if (salvar) {
+      const phoneNumberId = salvar.dataset.crmSalvarTenant;
+      const tenantId = salvar.closest('tr').querySelector('[data-crm-trocar-tenant]').value;
+      if (!tenantId) { msgEl().textContent = '❌ Escolha um cliente.'; return; }
+      salvar.disabled = true;
+      const resultado = await api('/api/whatsapp/crm-numeros', {
+        method: 'POST',
+        body: JSON.stringify({ phone_number_id: phoneNumberId, tenant_id: tenantId }),
+      });
+      salvar.disabled = false;
+      if (resultado && !resultado.error) {
+        msgEl().textContent = '✅ Cliente atualizado.';
+        carregarCrmNumeros();
+      } else {
+        msgEl().textContent = `❌ ${(resultado && resultado.error) || 'Falha ao salvar.'}`;
+      }
+      return;
+    }
+
+    const desvincular = e.target.closest('[data-crm-desvincular]');
+    if (desvincular) {
+      const phoneNumberId = desvincular.dataset.crmDesvincular;
+      desvincular.disabled = true;
+      const resultado = await api(`/api/whatsapp/crm-numeros/${encodeURIComponent(phoneNumberId)}`, { method: 'DELETE' });
+      desvincular.disabled = false;
+      if (resultado && !resultado.error) {
+        msgEl().textContent = '✅ Desvinculado.';
+        carregarCrmNumeros();
+      } else {
+        msgEl().textContent = `❌ ${(resultado && resultado.error) || 'Falha ao desvincular.'}`;
+      }
+    }
+  });
+
+  document.getElementById('crm-novo-vincular').addEventListener('click', async () => {
+    const phoneNumberId = document.getElementById('crm-novo-phone-id').value.trim();
+    const numeroExibido = document.getElementById('crm-novo-numero-exibido').value.trim();
+    const tenantId = document.getElementById('crm-novo-tenant').value;
+    if (!phoneNumberId || !tenantId) { msgEl().textContent = '❌ Informe o phone_number_id e escolha um cliente.'; return; }
+
+    const btn = document.getElementById('crm-novo-vincular');
+    btn.disabled = true;
+    btn.textContent = 'Vinculando...';
+    const resultado = await api('/api/whatsapp/crm-numeros', {
+      method: 'POST',
+      body: JSON.stringify({ phone_number_id: phoneNumberId, tenant_id: tenantId, numero_exibido: numeroExibido || null }),
+    });
+    btn.disabled = false;
+    btn.textContent = 'Vincular';
+    if (resultado && !resultado.error) {
+      msgEl().textContent = '✅ Vinculado.';
+      document.getElementById('crm-novo-phone-id').value = '';
+      document.getElementById('crm-novo-numero-exibido').value = '';
+      carregarCrmNumeros();
+    } else {
+      msgEl().textContent = `❌ ${(resultado && resultado.error) || 'Falha ao vincular.'}`;
+    }
+  });
 }
 
 carregar();
