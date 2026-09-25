@@ -51,13 +51,18 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
     return { tenants: rows };
   });
 
-  fastify.get('/api/whatsapp/crm-numeros', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+  // Erro devolvido com status 200 (não 502/500) de propósito: nginx/Cloudflare
+  // na frente do admin trocam qualquer 5xx do serviço por uma página HTML
+  // genérica de erro — o front nunca chegava a ver a mensagem real (achado
+  // ao vivo, 2026-09-25). `resultado.error` é o jeito de sinalizar falha
+  // aqui, não o status HTTP.
+  fastify.get('/api/whatsapp/crm-numeros', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
     let dados;
     try {
       dados = await chamarCrmInterno(fastify, '/crm/admin-interno/whatsapp-numeros');
     } catch (erro) {
       fastify.log.error(`[crm-whatsapp-numeros] ${erro.message}`);
-      return reply.code(502).send({ error: erro.message });
+      return { error: erro.message };
     }
     const tenantIds = [...new Set(dados.numeros.map((n) => n.tenant_id))];
     let nomesPorTenant = new Map();
@@ -83,17 +88,17 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
       return reply.code(201).send(resultado);
     } catch (erro) {
       fastify.log.error(`[crm-whatsapp-numeros] ${erro.message}`);
-      return reply.code(502).send({ error: erro.message });
+      return { error: erro.message };
     }
   });
 
-  fastify.delete('/api/whatsapp/crm-numeros/:phoneNumberId', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+  fastify.delete('/api/whatsapp/crm-numeros/:phoneNumberId', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
     try {
       await chamarCrmInterno(fastify, `/crm/admin-interno/whatsapp-numeros/${encodeURIComponent(request.params.phoneNumberId)}`, { method: 'DELETE' });
       return { ok: true };
     } catch (erro) {
       fastify.log.error(`[crm-whatsapp-numeros] ${erro.message}`);
-      return reply.code(502).send({ error: erro.message });
+      return { error: erro.message };
     }
   });
 }

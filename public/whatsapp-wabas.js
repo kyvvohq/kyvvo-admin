@@ -290,7 +290,10 @@ async function carregarCrmNumeros() {
   const opcoesTenant = crmTenants.map((t) => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.nome)}</option>`).join('');
   document.getElementById('crm-novo-tenant').innerHTML = `<option value="">Cliente...</option>${opcoesTenant}`;
 
-  if (!numerosResp) { corpo.innerHTML = '<tr><td colspan="3" class="vazio-inline">Falha ao consultar o CRM.</td></tr>'; return; }
+  if (!numerosResp || numerosResp.error) {
+    corpo.innerHTML = `<tr><td colspan="3" class="vazio-inline">❌ ${escapeHtml((numerosResp && numerosResp.error) || 'Falha ao consultar o CRM.')}</td></tr>`;
+    return;
+  }
   const numeros = numerosResp.numeros || [];
   corpo.innerHTML = numeros.length ? numeros.map((n) => `
     <tr data-crm-numero="${escapeHtml(n.phone_number_id)}">
