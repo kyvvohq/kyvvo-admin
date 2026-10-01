@@ -31,6 +31,29 @@ function registerAdminUsuariosRoutes(fastify, pool) {
       usuarios: rows.map((u) => ({ ...u, plano_nome: planos.nomeDoPlano(u.plano) })),
     };
   });
+
+  // Troca de e-mail de um usuário individual (suporte/triagem) — não existia
+  // nenhuma rota de edição aqui até agora, só o PATCH de tenant (que não
+  // cobre `usuarios`, tabela separada). Mesma normalização de
+  // .toLowerCase().trim() usada no login/cadastro de cada produto.
+  fastify.patch('/api/usuarios/:id', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    const { id } = request.params;
+    const { email } = request.body || {};
+    if (!email || !email.trim()) {
+      return reply.code(400).send({ error: 'Informe o e-mail.' });
+    }
+    try {
+      const { rows } = await pool.query(
+        'UPDATE usuarios SET email = $2 WHERE id = $1 RETURNING id, nome, email, tenant_id',
+        [id, email.trim().toLowerCase()]
+      );
+      if (!rows[0]) return reply.code(404).send({ error: 'Usuário não encontrado' });
+      return rows[0];
+    } catch (erro) {
+      if (erro.code === '23505') return reply.code(409).send({ error: 'Esse e-mail já está em uso por outra conta.' });
+      throw erro;
+    }
+  });
 }
 
 module.exports = { registerAdminUsuariosRoutes };
