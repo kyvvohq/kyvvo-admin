@@ -108,7 +108,13 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
       return reply.code(400).send({ error: 'META_WHATSAPP_TOKEN não configurado no servidor.' });
     }
     try {
-      const resultado = await metaWhatsappService.registrarNumero(request.params.phoneNumberId);
+      // `pin` opcional (US real: "Two step verification PIN Mismatch") — um
+      // número que já teve 2FA configurado antes (fora do nosso fluxo) exige
+      // o PIN ORIGINAL pra re-registrar, não aceita qualquer PIN novo. Sem
+      // isso no corpo, mantém o comportamento antigo (gera um aleatório —
+      // só funciona pra número que nunca foi registrado).
+      const { pin } = request.body || {};
+      const resultado = await metaWhatsappService.registrarNumero(request.params.phoneNumberId, pin);
       return { ok: true, resultado };
     } catch (erro) {
       return reply.code(502).send({ error: `Falha ao registrar na Meta: ${erro.message}` });
