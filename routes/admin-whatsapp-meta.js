@@ -121,6 +121,39 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
     }
   });
 
+  // Recuperação de PIN esquecido (ver comentário em solicitarCodigoVerificacao)
+  // — passo 1: pede o código por SMS/ligação pro número físico.
+  fastify.post('/api/whatsapp/numeros/:phoneNumberId/solicitar-codigo', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    if (!process.env.META_WHATSAPP_TOKEN) {
+      return reply.code(400).send({ error: 'META_WHATSAPP_TOKEN não configurado no servidor.' });
+    }
+    try {
+      const { metodo } = request.body || {};
+      const resultado = await metaWhatsappService.solicitarCodigoVerificacao(request.params.phoneNumberId, metodo);
+      return { ok: true, resultado };
+    } catch (erro) {
+      return reply.code(502).send({ error: `Falha ao solicitar código na Meta: ${erro.message}` });
+    }
+  });
+
+  // Passo 2 — confirma o código recebido. Depois disso, /registrar aceita
+  // qualquer PIN novo pra esse número.
+  fastify.post('/api/whatsapp/numeros/:phoneNumberId/verificar-codigo', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    if (!process.env.META_WHATSAPP_TOKEN) {
+      return reply.code(400).send({ error: 'META_WHATSAPP_TOKEN não configurado no servidor.' });
+    }
+    const { codigo } = request.body || {};
+    if (!codigo) {
+      return reply.code(400).send({ error: 'Informe o código recebido.' });
+    }
+    try {
+      const resultado = await metaWhatsappService.verificarCodigoVerificacao(request.params.phoneNumberId, codigo);
+      return { ok: true, resultado };
+    } catch (erro) {
+      return reply.code(502).send({ error: `Falha ao verificar código na Meta: ${erro.message}` });
+    }
+  });
+
   // Contrário da rota acima — libera o número do registro ativo na Cloud API
   // (não remove da WABA). Usado quando um número verificado direto no Meta
   // Business Suite (fora do Embedded Signup) precisa ser "solto" pra ser
