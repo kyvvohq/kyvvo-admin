@@ -115,6 +115,22 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
     }
   });
 
+  // Contrário da rota acima — libera o número do registro ativo na Cloud API
+  // (não remove da WABA). Usado quando um número verificado direto no Meta
+  // Business Suite (fora do Embedded Signup) precisa ser "solto" pra ser
+  // reconectado do zero por esse fluxo, sem brigar com o registro anterior.
+  fastify.post('/api/whatsapp/numeros/:phoneNumberId/desregistrar', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    if (!process.env.META_WHATSAPP_TOKEN) {
+      return reply.code(400).send({ error: 'META_WHATSAPP_TOKEN não configurado no servidor.' });
+    }
+    try {
+      const resultado = await metaWhatsappService.desregistrarNumero(request.params.phoneNumberId);
+      return { ok: true, resultado };
+    } catch (erro) {
+      return reply.code(502).send({ error: `Falha ao desregistrar na Meta: ${erro.message}` });
+    }
+  });
+
   // Envia o template "hello_world" (aprovado por padrão em toda WABA) pra um
   // número de teste — confirma que um número recém-registrado (ver rota
   // acima) está mesmo operacional na Cloud API, sem depender de nenhum
