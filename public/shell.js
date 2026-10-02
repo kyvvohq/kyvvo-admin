@@ -22,6 +22,7 @@ const LUCIDE_ICONS = {
   history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
   code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
   package: '<path d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"/><path d="M12 22V12"/><path d="M3.29 7 12 12l8.71-5"/><path d="m7.5 4.27 9 5.15"/>',
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>',
   megaphone: '<path d="m3 11 18-5v12L3 14v-3z"/><path d="M11.6 16.8a3 3 0 1 1-5.8-1.6"/>',
   shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
 };
@@ -77,6 +78,16 @@ const NAV_TREE = [
       // Studio+People (pedido do Bruno) — ver comentário em
       // routes/admin-whatsapp-disparos.js.
       { label: 'Disparos', href: '/whatsapp-disparos.html' },
+    ],
+  },
+  {
+    // Modelos editáveis sem deploy + rodapé + histórico + bloqueio (pedido
+    // do Bruno, 2026-10-02) — ver routes/admin-email.js.
+    tipo: 'grupo', label: 'E-mail', icon: 'mail', filhos: [
+      { label: 'Modelos', href: '/email-modelos.html' },
+      { label: 'Rodapé', href: '/email-rodape.html' },
+      { label: 'Envios', href: '/email-envios.html' },
+      { label: 'Lista de bloqueio', href: '/email-bloqueio.html' },
     ],
   },
   {

@@ -21,6 +21,7 @@ const { registerAdminMensagensRoutes } = require('./routes/admin-mensagens');
 const { registerAdminEventosCatalogoRoutes } = require('./routes/admin-eventos-catalogo');
 const { registerAdminWhatsappDisparosRoutes } = require('./routes/admin-whatsapp-disparos');
 const { registerAdminCrmWhatsappNumerosRoutes } = require('./routes/admin-crm-whatsapp-numeros');
+const { registerAdminEmailRoutes } = require('./routes/admin-email');
 
 const PORT = process.env.PORT || 3004;
 
@@ -129,6 +130,7 @@ async function build() {
   registerAdminEventosCatalogoRoutes(fastify, pool);
   registerAdminWhatsappDisparosRoutes(fastify, pool);
   registerAdminCrmWhatsappNumerosRoutes(fastify, pool);
+  registerAdminEmailRoutes(fastify, pool);
 
   return fastify;
 }

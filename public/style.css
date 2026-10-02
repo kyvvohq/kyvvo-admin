@@ -3186,3 +3186,7 @@ button.loading::after {
 @media (max-width: 480px) {
   .drawer-painel { max-width: 100%; }
 }
+
+/* Telas E-mail (email-*.html): botões no tamanho do conteúdo — o `button`
+   global é largura total (herança das telas de login/form). */
+.btn-auto { width: auto; margin: 0; padding: 10px 18px; }
