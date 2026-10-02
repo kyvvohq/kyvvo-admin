@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<script>
+  if (!localStorage.getItem('kyvvo_admin_token')) {
+    window.location.href = '/login.html';
+  }
+  // Tema aplicado antes do primeiro paint (evita flash) — mesmo dialeto
+  // data-theme do @kyvvohq/design-system, mesma chave kyvvo_tema do painel
+  // do tenant (kyvvo-studio).
+  document.documentElement.setAttribute('data-theme', localStorage.getItem('kyvvo_tema') || 'light');
+</script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rodapé — Admin Kyvvo</title>
+<link rel="icon" type="image/svg+xml" href="/ds/favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="/ds/tokens.css">
+<link rel="stylesheet" href="/ds/components.css">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="painel-shell">
+  <nav class="ds-menu" data-ds-menu id="menu-lateral">
+    <div class="ds-menu-topo">
+      <span class="ds-menu-marca logo">ky<span class="logo-vv">vv</span>o</span>
+      <button type="button" class="ds-menu-toggle" id="btn-toggle-sidebar">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+    </div>
+  </nav>
+  <div class="painel-main">
+    <div class="topbar">
+      <div class="topbar-textos">
+        <div class="topbar-titulo">E-mail — Rodapé</div>
+        <div class="admin-badge">🛠 Área administrativa</div>
+      </div>
+      <div class="topbar-direita">
+        <div class="user-menu" id="user-menu">
+        <button class="user-menu-toggle" id="user-menu-toggle">
+          <div class="user-menu-avatar" id="user-menu-avatar"></div>
+          <div class="user-menu-textos">
+            <div class="user-menu-nome" id="admin-nome"></div>
+          </div>
+          <span class="user-menu-chevron">▾</span>
+        </button>
+        <div class="user-menu-dropdown" id="user-menu-dropdown" hidden></div>
+      </div>
+      </div>
+    </div>
+    <div class="conteudo" id="conteudo" style="max-width: 1200px;"></div>
+    <footer data-ds-rodape data-ds-produto="Admin"></footer>
+  </div>
+</div>
+<script src="/ds/components.js"></script>
+<script src="/shell.js"></script>
+<script src="/email-comum.js"></script>
+<script src="/email-rodape.js"></script>
+</body>
+</html>
