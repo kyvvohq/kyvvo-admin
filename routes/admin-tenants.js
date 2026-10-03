@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const planos = require('../lib/planos');
 const { calcularTrialTenant, statusContaTenant } = require('../lib/trial-conta');
 const { montarResumoPagamentos } = require('../lib/pagamentos');
+const { chamarCrmInterno } = require('../lib/crm-interno');
 
 // CHECK da coluna tenants.segmento (migration 018) — legado, só o CRUD de
 // tenants do admin ainda usa (cadastro self-service migrou pra segmento_id
@@ -375,6 +376,23 @@ function registerAdminTenantsRoutes(fastify, pool) {
       throw erro;
     } finally {
       client.release();
+    }
+
+    // "Resumo" do CRM não tem tabela própria aqui (banco do CRM é separado,
+    // sem tenants/modulos) — tenant_modulos continua sendo a fonte da
+    // verdade exibida nesta tela, mas o CRM só enxerga o flag através do seu
+    // próprio admin-interno. Best-effort: se o CRM estiver fora do ar, o
+    // toggle aqui ainda funciona (fica consistente quando o CRM voltar a
+    // responder, próxima vez que alguém mexer nesse toggle).
+    if (moduloKey === 'crm_resumo') {
+      try {
+        await chamarCrmInterno('/crm/admin-interno/resumo-ativo', {
+          method: 'PATCH',
+          body: JSON.stringify({ tenant_id: id, ativo }),
+        });
+      } catch (erro) {
+        fastify.log.error(`[tenants] falha ao sincronizar módulo Resumo com o CRM: ${erro.message}`);
+      }
     }
 
     return { modulos: await modulosDoTenantParaAdmin(id) };
