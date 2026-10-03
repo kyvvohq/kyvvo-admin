@@ -15,28 +15,9 @@
 // dedicado pra um SEGUNDO cliente do CRM ao mesmo tempo exige mudar o
 // roteamento do platform pra olhar a tabela em vez de comparar com uma env
 // var fixa — fora de escopo aqui.
-const CRM_INTERNAL_URL = process.env.CRM_INTERNAL_URL || 'http://crm:3005';
-const ADMIN_INTERNAL_TOKEN = process.env.ADMIN_INTERNAL_TOKEN;
-
-async function chamarCrmInterno(fastify, path, options = {}) {
-  if (!ADMIN_INTERNAL_TOKEN) {
-    throw new Error('ADMIN_INTERNAL_TOKEN não configurado no servidor do admin.');
-  }
-  const res = await fetch(`${CRM_INTERNAL_URL}${path}`, {
-    ...options,
-    headers: {
-      'x-admin-internal-token': ADMIN_INTERNAL_TOKEN,
-      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
-      ...(options.headers || {}),
-    },
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!res.ok) {
-    const erro = await res.json().catch(() => ({}));
-    throw new Error(erro.error || `CRM respondeu ${res.status}`);
-  }
-  return res.json();
-}
+// chamarCrmInterno virou compartilhada em lib/crm-interno.js (2026-10-03 —
+// também usada pelo toggle do módulo "Resumo" em admin-tenants.js).
+const { chamarCrmInterno } = require('../lib/crm-interno');
 
 function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
   // Tenants com o módulo 'crm' ativo — mesmo JOIN já usado em
@@ -59,7 +40,7 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
   fastify.get('/api/whatsapp/crm-numeros', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
     let dados;
     try {
-      dados = await chamarCrmInterno(fastify, '/crm/admin-interno/whatsapp-numeros');
+      dados = await chamarCrmInterno('/crm/admin-interno/whatsapp-numeros');
     } catch (erro) {
       fastify.log.error(`[crm-whatsapp-numeros] ${erro.message}`);
       return { error: erro.message };
@@ -81,7 +62,7 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
       return reply.code(400).send({ error: 'phone_number_id e tenant_id são obrigatórios' });
     }
     try {
-      const resultado = await chamarCrmInterno(fastify, '/crm/admin-interno/whatsapp-numeros', {
+      const resultado = await chamarCrmInterno('/crm/admin-interno/whatsapp-numeros', {
         method: 'POST',
         body: JSON.stringify({ phone_number_id: phoneNumberId, tenant_id: tenantId, numero_exibido: numeroExibido || null }),
       });
@@ -94,7 +75,7 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
 
   fastify.delete('/api/whatsapp/crm-numeros/:phoneNumberId', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
     try {
-      await chamarCrmInterno(fastify, `/crm/admin-interno/whatsapp-numeros/${encodeURIComponent(request.params.phoneNumberId)}`, { method: 'DELETE' });
+      await chamarCrmInterno(`/crm/admin-interno/whatsapp-numeros/${encodeURIComponent(request.params.phoneNumberId)}`, { method: 'DELETE' });
       return { ok: true };
     } catch (erro) {
       fastify.log.error(`[crm-whatsapp-numeros] ${erro.message}`);
