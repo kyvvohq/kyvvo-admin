@@ -154,58 +154,6 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 
 /* Painel */
-/* Cartão flutuante (Kyvvo DS · "Barra superior") — antes era uma barra full-
-   width com só borda inferior; agora radius/fundo/borda seguem o mesmo
-   tratamento de cartão do resto do DS (US57). Só na área admin: o topbar
-   do painel do tenant reaproveita a mesma classe e ganha o visual novo de
-   graça, não tinha motivo pra divergir. */
-/* Cabeçalho — padrão Kyvvo People: barra fixa no topo, logo à esquerda,
-   menu de perfil à direita, borda inferior (não é um cartão flutuante). */
-.topbar {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  height: 64px;
-  padding: 0 var(--space-5);
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
-}
-
-.topbar-esquerda { display: flex; align-items: center; gap: 10px; }
-.topbar-textos { display: flex; flex-direction: column; gap: 2px; }
-.topbar .logo { margin: 0; font-size: 20px; }
-.saudacao { font-size: 13px; color: var(--muted-strong); }
-
-/* Nome do produto ao lado do logo (paridade com o Kyvvo People, que mostra
-   "People" como tag). A marca é única (@kyvvohq/design-system) — o que
-   diferencia é o nome do produto. */
-.topbar-produto-tag {
-  font-family: var(--font-display);
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted-strong);
-  padding: 3px 9px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-full);
-  line-height: 1;
-}
-
-/* Título da página (DS: "Página" 19px Space Grotesk + eyebrow abaixo) —
-   só as páginas admin passam essa div; o painel do tenant continua sem
-   título (ela é opcional, .topbar-textos funciona vazia também). */
-.topbar-titulo {
-  font-family: var(--font-display);
-  font-size: 19px;
-  font-weight: 700;
-  color: var(--text);
-}
-
-.topbar-direita { display: flex; align-items: center; gap: 10px; }
-
 /* Botão de ícone genérico do topbar (DS: "Ação bell"/"Ação life-buoy") —
    38x38, fundo sutil, usado hoje só pelo toggle de tema, mas serve pra
    qualquer ação futura de ícone único no topbar. */
@@ -226,28 +174,6 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .btn-topbar-icone:hover { color: var(--text); border-color: var(--border-strong); }
 .btn-topbar-icone svg { width: 18px; height: 18px; }
-
-/* Logo e botão de ocultar sidebar migraram pro topbar (antes viviam só na
-   sidebar) — ambos são <button>, então precisam desfazer o reset genérico
-   de `button` (largura 100%, fundo roxo, padding grande) antes de herdar a
-   aparência de .logo / virar um ícone compacto. */
-.topbar-logo {
-  width: auto;
-  margin: 0;
-  padding: 0;
-  background: none;
-  border: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-}
-.topbar-logo:hover { background: none; opacity: 0.85; }
-
-/* Wordmark como imagem — mesmo asset do Kyvvo People
-   (@kyvvohq/design-system logo.svg/logo-dark.svg). Cor é gravada no SVG, não
-   currentColor (um <img src> não herda cor da página) — o tema troca o
-   arquivo inteiro via .js-logo-kyvvo, ver aplicarLogo() no app.js. */
-.topbar-logo-img { height: 22px; width: auto; display: block; }
 
 /* Alça de ocultar/exibir a sidebar — fica encostada na borda direita da
    sidebar (não mais no topbar), como uma "aba" entre ela e o conteúdo.
@@ -273,6 +199,16 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
   padding: 3px 12px;
   margin-top: 4px;
 }
+
+/* Cabecalho de pagina -- veio junto da migracao do topbar fixo (.topbar)
+   pro .ds-topbar compartilhado (components.css): titulo da pagina e o
+   .admin-badge agora moram aqui, dentro do .painel-main, lado a lado
+   (mesmo padrao .cabecalho-pagina/.linha-titulo do Kyvvo CRM). */
+.cabecalho-pagina { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: var(--space-5); }
+.cabecalho-pagina .textos { display: flex; flex-direction: column; gap: 4px; }
+.cabecalho-pagina .linha-titulo { display: flex; align-items: center; gap: 10px; }
+.pagina-titulo { font-size: 26px; font-weight: 700; margin: 0; color: var(--text); }
+.linha-titulo .admin-badge { margin-top: 0; }
 
 /* Menu lateral: componente data-ds-menu do @kyvvohq/design-system (v2.6.0,
    ver components.css) — o .ds-menu já é a "sidebar" (largura, fundo,
@@ -300,11 +236,6 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
    DS não cobre esse caso (só o link/sublink ativo em si), então isso
    continua sendo do produto. */
 .ds-menu-grupo-botao.tem-filho-ativo { color: var(--accent-strong); background: var(--accent-tint); font-weight: 600; }
-
-/* .logo (wordmark "kyvvo" em texto) reusada dentro do .ds-menu-topo — sem
-   isso herdava margin-bottom/text-align pensados pra uso solo (ex.: acima
-   do form de login). */
-.ds-menu-marca.logo { margin-bottom: 0; text-align: left; font-size: 20px; }
 
 /* Item da árvore-alvo (imagem do Bruno) sem tela própria ainda — <span>,
    não <a>, de propósito (nada pra clicar). Mesmo padding indentado de um
