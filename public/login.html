@@ -20,19 +20,26 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<div class="center-screen">
-  <div class="card">
-    <div class="logo">ky<span class="logo-vv">vv</span>o</div>
+<div class="ds-login">
+  <div class="ds-login-cartao">
+    <div class="ds-topbar-marca ds-login-marca">
+      <span class="ds-topbar-produto"><span class="ds-topbar-produto-acento">Ad</span>min</span>
+      <span class="ds-topbar-kyvvo">kyvvo</span>
+    </div>
     <div class="admin-badge">🛠 Área administrativa</div>
-    <form id="form-login" novalidate>
-      <label for="email">E-mail</label>
-      <input type="email" id="email" autocomplete="email">
-      <label for="senha">Senha</label>
-      <div class="senha-wrapper">
-        <input type="password" id="senha" autocomplete="current-password">
-        <button type="button" id="btn-toggle-senha" class="toggle-senha" aria-label="Mostrar senha" tabindex="-1">👁</button>
+    <form class="ds-login-form" id="form-login" novalidate>
+      <div class="ds-campo">
+        <label class="ds-rotulo" for="email">E-mail</label>
+        <input class="ds-input ds-login-input" type="email" id="email" autocomplete="email">
       </div>
-      <button type="submit" id="btn-entrar">Entrar</button>
+      <div class="ds-campo">
+        <label class="ds-rotulo" for="senha">Senha</label>
+        <div class="senha-wrapper">
+          <input class="ds-input ds-login-input" type="password" id="senha" autocomplete="current-password">
+          <button type="button" id="btn-toggle-senha" class="toggle-senha" aria-label="Mostrar senha" tabindex="-1">👁</button>
+        </div>
+      </div>
+      <button type="submit" class="ds-btn ds-btn-primario ds-btn-bloco ds-btn-lg ds-login-entrar" id="btn-entrar">Entrar</button>
       <div class="erro" id="erro" role="alert"></div>
     </form>
   </div>
