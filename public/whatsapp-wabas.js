@@ -8,11 +8,16 @@
 // token / identificação do admin / dropdown "Sair" vivem em shell.js (US53),
 // carregado antes deste script.
 
+// "Content-Type: application/json" só quando tem corpo de verdade — bug
+// real encontrado ao vivo (2026-10-04): o Fastify recusa com 400 um
+// corpo vazio quando o content-type diz que é JSON, então todo DELETE feito
+// por esta função (nunca manda `body`) quebrava o "Desvincular" do CRM, por
+// exemplo — só funcionava chamando a rota manualmente sem esse header.
 async function api(path, options = {}) {
   const res = await fetch(path, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `Bearer ${token}`,
       ...(options.headers || {}),
     },

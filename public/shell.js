@@ -226,7 +226,7 @@ function montarMenu() {
   });
 
   // Só troca a <ul> em si — nav.innerHTML = '' apagaria também o
-  // .ds-menu-topo (logo + botão de recolher), que é estático no HTML.
+  // .ds-menu-toggle (botão de recolher), que é estático no HTML.
   const listaAntiga = nav.querySelector('.ds-menu-lista');
   if (listaAntiga) listaAntiga.replaceWith(lista);
   else nav.appendChild(lista);

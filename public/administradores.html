@@ -22,32 +22,37 @@
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+<header class="ds-topbar">
+  <a class="ds-topbar-marca" href="/painel.html" aria-label="Ir para o início">
+    <span class="ds-topbar-produto"><span class="ds-topbar-produto-acento">Ad</span>min</span>
+    <span class="ds-topbar-kyvvo">kyvvo</span>
+  </a>
+  <div class="ds-topbar-acoes">
+    <div class="user-menu" id="user-menu">
+      <button class="user-menu-toggle" id="user-menu-toggle">
+        <div class="user-menu-avatar" id="user-menu-avatar"></div>
+        <div class="user-menu-textos">
+          <div class="user-menu-nome" id="admin-nome"></div>
+        </div>
+        <span class="user-menu-chevron">▾</span>
+      </button>
+      <div class="user-menu-dropdown" id="user-menu-dropdown" hidden></div>
+    </div>
+  </div>
+</header>
 <div class="painel-shell">
   <nav class="ds-menu" data-ds-menu id="menu-lateral">
-    <div class="ds-menu-topo">
-      <span class="ds-menu-marca logo">ky<span class="logo-vv">vv</span>o</span>
-      <button type="button" class="ds-menu-toggle" id="btn-toggle-sidebar">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
-      </button>
-    </div>
+    <button type="button" class="ds-menu-toggle" id="btn-toggle-sidebar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
   </nav>
   <div class="painel-main">
-    <div class="topbar">
-      <div class="topbar-textos">
-        <div class="topbar-titulo">Administradores</div>
-        <div class="admin-badge">🛠 Área administrativa</div>
-      </div>
-      <div class="topbar-direita">
-        <div class="user-menu" id="user-menu">
-        <button class="user-menu-toggle" id="user-menu-toggle">
-          <div class="user-menu-avatar" id="user-menu-avatar"></div>
-          <div class="user-menu-textos">
-            <div class="user-menu-nome" id="admin-nome"></div>
-          </div>
-          <span class="user-menu-chevron">▾</span>
-        </button>
-        <div class="user-menu-dropdown" id="user-menu-dropdown" hidden></div>
-      </div>
+    <div class="cabecalho-pagina">
+      <div class="textos">
+        <div class="linha-titulo">
+          <h1 class="pagina-titulo">Administradores</h1>
+          <span class="admin-badge">🛠 Área administrativa</span>
+        </div>
       </div>
     </div>
     <div class="conteudo" style="max-width: 1400px;">
