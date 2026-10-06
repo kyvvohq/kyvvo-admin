@@ -78,6 +78,11 @@ const NAV_TREE = [
       // Studio+People (pedido do Bruno) — ver comentário em
       // routes/admin-whatsapp-disparos.js.
       { label: 'Disparos', href: '/whatsapp-disparos.html' },
+      // Repositório dos modelos/gatilhos padrão por produto (Bruno,
+      // 2026-10-06) — ver routes/admin-disparos-catalogo.js. Usado no
+      // onboarding de WABA: quando um tenant conecta a própria WABA, o
+      // produto lê daqui pra submeter os templates padrão pra Meta.
+      { label: 'Catálogo de disparos', href: '/whatsapp-catalogo.html' },
     ],
   },
   {
