@@ -78,15 +78,18 @@ function registerAdminTenantsRoutes(fastify, pool) {
     const orderColumn = TENANTS_ORDER_COLUMNS[orderByParam] || TENANTS_ORDER_COLUMNS.cadastrado_em;
     const orderDir = String(orderDirParam).toLowerCase() === 'asc' ? 'ASC' : 'DESC';
 
-    // Busca por e-mail (de qualquer usuário do tenant) ou WhatsApp — parâmetro
-    // sempre bindado via $n, nunca interpolado na query (US27/CA05).
+    // Busca por e-mail/nome (de qualquer usuário do tenant) ou WhatsApp —
+    // parâmetro sempre bindado via $n, nunca interpolado na query (US27/
+    // CA05). Nome de usuário entrou depois (2026-10-12): usuário não tem
+    // mais tela própria de busca (US16b), então achar o tenant pelo
+    // e-mail/nome de alguém da equipe precisa valer aqui também.
     const search = typeof request.query.search === 'string' ? request.query.search.trim() : '';
     const condicoes = ['t.excluido_em IS NULL'];
     const searchParams = [];
     if (search) {
       searchParams.push(`%${search}%`);
       condicoes.push(`(t.whatsapp ILIKE $${searchParams.length}
-           OR EXISTS (SELECT 1 FROM usuarios u WHERE u.tenant_id = t.id AND u.email ILIKE $${searchParams.length}))`);
+           OR EXISTS (SELECT 1 FROM usuarios u WHERE u.tenant_id = t.id AND (u.email ILIKE $${searchParams.length} OR u.nome ILIKE $${searchParams.length})))`);
     }
     if (modoFiltro) {
       searchParams.push(modoFiltro);
@@ -226,7 +229,14 @@ function registerAdminTenantsRoutes(fastify, pool) {
     // módulos (CA01); `modulos_ativos` acima continua existindo só pro modal
     // antigo de edição da listagem (US16/app.js).
     const modulos = await modulosDoTenantParaAdmin(id);
-    const { rows: usuarios } = await pool.query('SELECT id, email, nome FROM usuarios WHERE tenant_id = $1 ORDER BY nome', [id]);
+    // Lista de usuários vinculados (US16b, tela de detalhe do tenant) — mesmas
+    // colunas da antiga tela global de Usuários, só que já escopada pelo
+    // tenant (sem precisar de busca/filtro próprio).
+    const { rows: usuarios } = await pool.query(
+      `SELECT id, email, nome, role, ativo, criado_em, ultimo_login_em
+       FROM usuarios WHERE tenant_id = $1 ORDER BY nome`,
+      [id]
+    );
     // Responsável = primeiro usuário cadastrado do tenant (US28/CA03) — mesmo
     // critério (criado_em ASC) usado na listagem (US26); consulta separada
     // porque a lista `usuarios` acima é ordenada por nome (usada pelo CRUD

@@ -109,6 +109,11 @@ async function build() {
   // "Gerenciar tenant" caía num 404 puro do Fastify (rota nunca existiu).
   fastify.get('/tenants/:id', async (request, reply) => reply.sendFile('tenant-detalhe.html'));
 
+  // Página cheia de detalhe do usuário (/usuarios/:id), mesmo motivo da rota
+  // de tenant acima — chegada a partir do clique num usuário vinculado
+  // dentro de tenant-detalhe.js.
+  fastify.get('/usuarios/:id', async (request, reply) => reply.sendFile('usuario-detalhe.html'));
+
   // Versão do backend rodando — version.json gravado pelo workflow de deploy.
   fastify.get('/api/versao', { preHandler: [fastify.authenticateAdmin] }, async () => {
     try {

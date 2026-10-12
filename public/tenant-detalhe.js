@@ -35,6 +35,8 @@ const SEGMENTOS_ADMIN = {
   outro: 'Outro',
 };
 
+const ROLE_LABEL = { administrador: 'Administrador', operador: 'Operador' };
+
 const STATUS_CLASSES = {
   'Trial ativo': 'badge-trial-ativo',
   'Trial expirado': 'badge-trial-expirado',
@@ -257,6 +259,49 @@ function renderSecaoHistoricoModulos(historico) {
   `;
 }
 
+// US16b — usuários vinculados ao tenant (antes uma tela global própria,
+// /usuarios.html; agora só existe a partir daqui). Clicar na linha abre o
+// detalhe (/usuarios/:id), igual o clique num tenant na listagem de Tenants.
+function renderLinhaUsuario(u) {
+  return `
+    <tr data-usuario-id="${escapeHtml(u.id)}">
+      <td>${escapeHtml(u.nome || '—')}</td>
+      <td>${escapeHtml(u.email)}</td>
+      <td>${escapeHtml(ROLE_LABEL[u.role] || u.role)}</td>
+      <td><span class="badge ${u.ativo ? 'badge-status-ativo' : 'badge-status-inativo'}">${u.ativo ? 'Ativo' : 'Desativado'}</span></td>
+      <td>${formatarDataHora(u.ultimo_login_em)}</td>
+    </tr>
+  `;
+}
+
+function renderSecaoUsuarios(usuarios) {
+  return `
+    <section class="secao-detalhe">
+      <h3>Usuários vinculados</h3>
+      ${
+        usuarios.length
+          ? `
+        <div class="tabela-wrapper">
+          <table class="tabela-tenants">
+            <thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Status</th><th>Último login</th></tr></thead>
+            <tbody>${usuarios.map(renderLinhaUsuario).join('')}</tbody>
+          </table>
+        </div>
+      `
+          : '<span class="vazio-inline">Nenhum usuário vinculado</span>'
+      }
+    </section>
+  `;
+}
+
+function wireEventosUsuarios() {
+  conteudo.querySelectorAll('[data-usuario-id]').forEach((linha) => {
+    linha.addEventListener('click', () => {
+      window.location.href = `/usuarios/${encodeURIComponent(linha.dataset.usuarioId)}`;
+    });
+  });
+}
+
 function renderSecaoAtividade(t) {
   const c = t.contagens || {};
   return `
@@ -288,11 +333,13 @@ function renderPagina(data, historico) {
     ${renderSecaoNumeroNovo(data)}
     ${renderSecaoResponsavel(data)}
     ${renderSecaoStatus(data)}
+    ${renderSecaoUsuarios(data.usuarios || [])}
     ${renderSecaoModulos(data)}
     ${renderSecaoHistoricoModulos(historico)}
     ${renderSecaoAtividade(data)}
   `;
   wireEventosModulos();
+  wireEventosUsuarios();
 }
 
 // US65 — alterna um módulo pro tenant da tela atual. Em caso de sucesso,
