@@ -17,7 +17,7 @@ async function api(path, options = {}) {
   const res = await fetch(path, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       Authorization: `Bearer ${token}`,
       ...(options.headers || {}),
     },
