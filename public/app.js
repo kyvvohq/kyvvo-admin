@@ -286,7 +286,7 @@ function renderFiltros() {
     .join('');
   return `
     <div class="clientes-filtros">
-      <input type="search" id="busca-tenants" placeholder="Buscar por e-mail ou WhatsApp..." value="${escapeHtml(estado.search)}">
+      <input type="search" id="busca-tenants" placeholder="Buscar por e-mail/nome de usuário ou WhatsApp..." value="${escapeHtml(estado.search)}">
       <select id="filtro-status">
         <option value="">Status</option>
         <option value="ativo" ${estado.status === 'ativo' ? 'selected' : ''}>Ativo</option>

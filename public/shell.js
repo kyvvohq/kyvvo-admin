@@ -50,12 +50,12 @@ function svgIcone(nome, classe) {
 // que implementa a tela troca `pendente` por `href` aqui, isso e mais nada.
 const NAV_TREE = [
   { tipo: 'item', label: 'Visão geral', icon: 'layout-dashboard', href: '/dashboard.html' },
-  {
-    tipo: 'grupo', label: 'Clientes', icon: 'building-2', filhos: [
-      { label: 'Empresas', href: '/painel.html' },
-      { label: 'Usuários', href: '/usuarios.html' },
-    ],
-  },
+  // Usuários não é mais item de menu próprio (pedido do Bruno, 2026-10-12):
+  // usuário é sempre visto dentro do tenant dele (tenant-detalhe.js lista os
+  // vinculados, usuario-detalhe.js abre o detalhe de um). A busca por
+  // e-mail/nome de usuário continua funcionando de dentro da própria lista
+  // de Tenants (GET /api/tenants?search=, já casa usuarios.email/nome).
+  { tipo: 'item', label: 'Tenants', icon: 'building-2', href: '/painel.html' },
   {
     tipo: 'grupo', label: 'Produtos', icon: 'package', filhos: [
       { label: 'Studio', href: '/produtos-studio.html' },
