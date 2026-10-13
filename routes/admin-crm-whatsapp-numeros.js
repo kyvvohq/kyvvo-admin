@@ -108,6 +108,18 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
       return reply.code(400).send({ error: erro.message });
     }
   });
+
+  // Diagnóstico consolidado (kyvvo-crm#143): canal + últimas mensagens/
+  // conversas/execuções do agente, pra debugar "bot não responde" sem SQL
+  // manual no banco.
+  fastify.get('/api/whatsapp/crm-diagnostico/:tenantId', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
+    try {
+      return await chamarCrmInterno(`/crm/admin-interno/diagnostico-whatsapp/${encodeURIComponent(request.params.tenantId)}`);
+    } catch (erro) {
+      fastify.log.error(`[crm-diagnostico] ${erro.message}`);
+      return { error: erro.message };
+    }
+  });
 }
 
 module.exports = { registerAdminCrmWhatsappNumerosRoutes };
