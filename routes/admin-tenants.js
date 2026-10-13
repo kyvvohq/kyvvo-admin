@@ -1,6 +1,6 @@
 // Área admin da Kyvvo (US16) — Tenants — extraído de index.js (fase 9 da
-// modularização): GET /admin/api/tenants[/resumo|/:id|/:id/assinatura-resumo|
-// /:id/modulos/historico], PATCH /admin/api/tenants/:id[/modulos/:moduloKey|/modo],
+// modularização): GET /admin/api/tenants[/resumo|/:id|/:id/modulos/historico],
+// PATCH /admin/api/tenants/:id[/modulos/:moduloKey|/modo],
 // POST/PATCH/DELETE /admin/api/tenants[/:id], GET /admin/api/assinaturas,
 // GET /admin/api/planos (catálogo pro filtro).
 const bcrypt = require('bcryptjs');
@@ -256,6 +256,20 @@ function registerAdminTenantsRoutes(fastify, pool) {
       [id]
     );
 
+    // Número conectado: número vinculado via "números prontos" (US39.2) tem
+    // prioridade porque é o dado mais recente/confiável; self-service
+    // (Embedded Signup) não passa por `numeros_prontos`, só grava
+    // meta_phone_number_id direto em tenants — nesse caso cai no fallback de
+    // `tenant.telefone` (cadastrado no onboarding). Antes só vivia no painel
+    // lateral "Ver detalhes" (GET .../assinatura-resumo); com o clique na
+    // linha indo direto pra esta página (2026-10-13), juntou aqui — o custo
+    // é só mais uma query local, sem round-trip externo (diferente do resto
+    // daquela rota, que chamava a Asaas de verdade e por isso não entrou
+    // aqui: billing detalhado continua só em "Gerenciar assinatura").
+    const { rows: numeroRows } = tenant.meta_phone_number_id
+      ? await pool.query('SELECT telefone FROM numeros_prontos WHERE meta_phone_number_id = $1 LIMIT 1', [tenant.meta_phone_number_id])
+      : { rows: [] };
+
     // Indicador de trial somente leitura (US31/CA05) — todo o cálculo de
     // datas acontece aqui; o frontend só formata e exibe.
     const trial = calcularTrialTenant(tenant);
@@ -273,54 +287,6 @@ function registerAdminTenantsRoutes(fastify, pool) {
       modulos,
       usuarios,
       contagens: contagemRows[0],
-    };
-  });
-
-  // GET /admin/api/tenants/:id/assinatura-resumo — alimenta o painel lateral
-  // "Ver detalhes" da tela de Tenants (versão compacta, ao contrário do GET
-  // /admin/api/tenants/:id acima que traz tudo pra página cheia). Carregado
-  // só quando o painel abre (não em toda listagem), porque reaproveita
-  // montarResumoPagamentos, que chama a Asaas de verdade — tem latência de
-  // rede real, não é instantâneo.
-  fastify.get('/api/tenants/:id/assinatura-resumo', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
-    const { id } = request.params;
-    const { rows } = await pool.query(
-      `SELECT id, nome, whatsapp, telefone, meta_phone_number_id, ativo, plano, status, ativado_em,
-              status_alterado_em, asaas_customer_id, asaas_subscription_id, asaas_meio_pagamento, asaas_cartao_final
-       FROM tenants WHERE id = $1 AND excluido_em IS NULL`,
-      [id]
-    );
-    const tenant = rows[0];
-    if (!tenant) {
-      return reply.code(404).send({ error: 'Tenant não encontrado' });
-    }
-
-    const { rows: responsavelRows } = await pool.query(
-      'SELECT nome, email FROM usuarios WHERE tenant_id = $1 ORDER BY criado_em ASC LIMIT 1',
-      [id]
-    );
-    // Número conectado: number vinculado via "números prontos" (US39.2) tem
-    // prioridade porque é o dado mais recente/confiável; self-service
-    // (Embedded Signup) não passa por `numeros_prontos`, só grava
-    // meta_phone_number_id direto em tenants — nesse caso cai no fallback de
-    // `tenant.telefone` (cadastrado no onboarding).
-    const { rows: numeroRows } = tenant.meta_phone_number_id
-      ? await pool.query('SELECT telefone FROM numeros_prontos WHERE meta_phone_number_id = $1 LIMIT 1', [tenant.meta_phone_number_id])
-      : { rows: [] };
-
-    const pagamentos = await montarResumoPagamentos(tenant);
-    const trial = calcularTrialTenant(tenant);
-
-    return {
-      id: tenant.id,
-      nome: tenant.nome,
-      status_conta: statusContaTenant(tenant),
-      trial_dias_restantes: trial.trialDiasRestantes,
-      responsavel: responsavelRows[0] || null,
-      whatsapp: tenant.whatsapp,
-      plano_nome: pagamentos.plano_nome,
-      valor_plano: pagamentos.valor_plano,
-      proxima_cobranca: pagamentos.proxima_cobranca,
       whatsapp_conectado: Boolean(tenant.meta_phone_number_id),
       whatsapp_numero: (numeroRows[0] && numeroRows[0].telefone) || tenant.telefone || null,
     };

@@ -1,8 +1,10 @@
 // Área admin da Kyvvo — CRUD, busca, filtros, ordenação e paginação de
-// tenants, tudo numa única tela. "Ver detalhes" abre um painel lateral
-// compacto (drawer); a página cheia com módulos/histórico/atividade
-// (/tenants/:id) fica um clique atrás, via o botão "Gerenciar tenant" do
-// próprio drawer.
+// tenants, tudo numa única tela. Clicar na linha (fora do menu "⋯") vai
+// direto pra página cheia de detalhe (/tenants/:id, tenant-detalhe.js —
+// dados do negócio, status, usuários vinculados, módulos, histórico e
+// atividade). Até 2026-10-13 isso passava por um painel lateral resumido
+// (drawer) com um botão "Gerenciar tenant"; removido por ser um passo a
+// mais sem ganho — toda a informação do drawer entrou na página cheia.
 
 // token / identificação do admin / dropdown "Sair" agora vivem em shell.js
 // (US53), carregado antes deste script em todas as páginas admin.
@@ -107,35 +109,6 @@ function validarObrigatorios(form) {
   return primeiroInvalido;
 }
 
-// ---------- Painel lateral "Ver detalhes" (drawer) ----------
-function escFecharDrawer(e) {
-  if (e.key === 'Escape') fecharDrawer();
-}
-
-function fecharDrawer() {
-  const overlay = document.getElementById('drawer-overlay');
-  if (overlay) overlay.remove();
-  document.removeEventListener('keydown', escFecharDrawer);
-}
-
-function abrirDrawer(conteudoHtml) {
-  fecharDrawer();
-  const overlay = document.createElement('div');
-  overlay.className = 'drawer-overlay';
-  overlay.id = 'drawer-overlay';
-  overlay.innerHTML = `
-    <div class="drawer-painel">
-      <button class="drawer-close" id="drawer-close" aria-label="Fechar">✕</button>
-      ${conteudoHtml}
-    </div>
-  `;
-  document.body.appendChild(overlay);
-  document.getElementById('drawer-close').addEventListener('click', fecharDrawer);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) fecharDrawer(); });
-  document.addEventListener('keydown', escFecharDrawer);
-  return overlay;
-}
-
 // ---------- Listagem de tenants (busca, filtros, ordenação, paginação) ----------
 const MODO_ATENDIMENTO = {
   bot: { label: 'Bot', classe: 'badge-modo-bot' },
@@ -173,25 +146,10 @@ const estado = {
 let tenantsAtuais = [];
 let planosCatalogo = [];
 
-// WhatsApp é guardado só com dígitos (DDD + número, sem DDI) — formata pra
-// exibição: (XX) XXXXX-XXXX ou (XX) XXXX-XXXX pra fixo de 8 dígitos.
-function formatarWhatsapp(digitos) {
-  if (!digitos) return '—';
-  const d = String(digitos).replace(/\D/g, '');
-  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
-  return digitos;
-}
-
 function formatarData(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-}
-
-function formatarMoeda(valor) {
-  if (valor === null || valor === undefined) return '—';
-  return Number(valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
 function renderCabecalho() {
@@ -229,7 +187,6 @@ function renderLinha(t) {
         <div class="tabela-acoes-wrapper">
           <button type="button" class="btn-acoes" data-testid="btn-acoes-${escapeHtml(t.id)}" aria-label="Ações">⋯</button>
           <div class="tabela-acoes-dropdown" id="dropdown-${escapeHtml(t.id)}">
-            <button type="button" data-tenant-acao="ver-detalhes" data-id="${escapeHtml(t.id)}">Ver detalhes</button>
             <button type="button" data-tenant-acao="editar" data-id="${escapeHtml(t.id)}">Editar tenant</button>
             <div class="tabela-acoes-divisor"></div>
             <button type="button" data-tenant-acao="alterar-modo" data-id="${escapeHtml(t.id)}">Alterar modo de atendimento</button>
@@ -458,7 +415,6 @@ conteudo.addEventListener('click', (e) => {
     const tenant = tenantsAtuais.find((t) => t.id === acaoBtn.dataset.id);
     if (!tenant) return;
     const acao = acaoBtn.dataset.tenantAcao;
-    if (acao === 'ver-detalhes') abrirDrawerTenant(tenant);
     if (acao === 'editar') abrirModalTenant(tenant);
     if (acao === 'alternar') alternarAtivoTenant(tenant);
     if (acao === 'alterar-modo') abrirModalTrocaModo(tenant);
@@ -470,6 +426,12 @@ conteudo.addEventListener('click', (e) => {
   if (!e.target.closest('.tabela-acoes-wrapper')) {
     document.querySelectorAll('.tabela-acoes-dropdown.aberto').forEach((d) => d.classList.remove('aberto'));
   }
+
+  // Clique na linha (fora do menu "⋯") vai direto pra página cheia de
+  // detalhe — antes passava por um painel lateral resumido ("Ver
+  // detalhes" + botão "Gerenciar tenant"); pedido do Bruno pra ir direto.
+  const linha = e.target.closest('tr[data-id]');
+  if (linha) window.location.href = `/tenants/${encodeURIComponent(linha.dataset.id)}`;
 });
 
 // Fecha qualquer dropdown de ações aberto ao clicar fora da tabela.
@@ -490,55 +452,6 @@ async function alternarAtivoTenant(tenant) {
   } else {
     mostrarToast((resultado && resultado.error) || 'Erro ao atualizar tenant.', 'erro');
   }
-}
-
-// ---------- Painel lateral "Ver detalhes" ----------
-async function abrirDrawerTenant(tenantResumo) {
-  abrirDrawer('<div class="vazio">Carregando...</div>');
-
-  const detalhe = await api(`/api/tenants/${tenantResumo.id}/assinatura-resumo`);
-  if (!detalhe || detalhe.error) {
-    abrirDrawer(`<div class="vazio">${escapeHtml((detalhe && detalhe.error) || 'Erro ao carregar tenant.')}</div>`);
-    return;
-  }
-
-  const statusClasse = STATUS_CLASSES[detalhe.status_conta] || 'badge-status-inativo';
-  const statusLabel = detalhe.status_conta === 'Trial ativo' && detalhe.trial_dias_restantes != null
-    ? `Trial ativo · ${detalhe.trial_dias_restantes} dias`
-    : detalhe.status_conta;
-
-  abrirDrawer(`
-    <h3>${escapeHtml(detalhe.nome)}</h3>
-    <span class="badge badge-status ${statusClasse}">${escapeHtml(statusLabel)}</span>
-
-    <div class="drawer-secao">
-      <h4>Informações</h4>
-      <p><strong>Responsável:</strong> ${detalhe.responsavel ? escapeHtml(detalhe.responsavel.nome) : '—'}</p>
-      <p><strong>E-mail:</strong> ${detalhe.responsavel ? escapeHtml(detalhe.responsavel.email) : '—'}</p>
-      <p><strong>WhatsApp:</strong> ${formatarWhatsapp(detalhe.whatsapp)}</p>
-    </div>
-
-    <div class="drawer-secao">
-      <h4>Assinatura</h4>
-      <p><strong>Plano:</strong> ${escapeHtml(detalhe.plano_nome)}</p>
-      <p><strong>Valor:</strong> ${formatarMoeda(detalhe.valor_plano)}/mês</p>
-      <p><strong>Próxima cobrança:</strong> ${detalhe.proxima_cobranca ? formatarData(detalhe.proxima_cobranca.data) : '—'}</p>
-    </div>
-
-    <div class="drawer-secao">
-      <h4>WhatsApp</h4>
-      <p><strong>Status:</strong> ${detalhe.whatsapp_conectado ? 'Conectado' : 'Não conectado'}</p>
-      <p><strong>Número:</strong> ${formatarWhatsapp(detalhe.whatsapp_numero)}</p>
-    </div>
-
-    <div class="modal-acoes">
-      <button type="button" class="btn-primario" id="drawer-btn-gerenciar">Gerenciar tenant</button>
-    </div>
-  `);
-
-  document.getElementById('drawer-btn-gerenciar').addEventListener('click', () => {
-    window.location.href = `/tenants/${encodeURIComponent(detalhe.id)}`;
-  });
 }
 
 // ---------- Modal de confirmação de exclusão (soft delete) ----------
