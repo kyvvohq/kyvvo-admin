@@ -131,6 +131,19 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
       return { error: erro.message };
     }
   });
+
+  // Reprocessa uma conversa travada e devolve o erro real (kyvvo-crm#147/#148).
+  fastify.post('/api/whatsapp/crm-reprocessar/:tenantId/:telefone', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
+    try {
+      return await chamarCrmInterno(
+        `/crm/admin-interno/reprocessar/${encodeURIComponent(request.params.tenantId)}/${encodeURIComponent(request.params.telefone)}`,
+        { method: 'POST', body: '{}' },
+      );
+    } catch (erro) {
+      fastify.log.error(`[crm-reprocessar] ${erro.message}`);
+      return { error: erro.message };
+    }
+  });
 }
 
 module.exports = { registerAdminCrmWhatsappNumerosRoutes };
