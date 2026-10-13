@@ -271,6 +271,32 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
 
     return { configurado: true, templates, errosPorWaba };
   });
+
+  // Diagnóstico de "bot não responde" (achado ao vivo, 2026-10-13) — eventos
+  // crus do webhook da Meta no platform (chegou? foi roteado pra onde?),
+  // antes de suspeitar do produto de destino. Proxy pra
+  // GET /internal/whatsapp/eventos (kyvvo-platform#46), autenticado com o
+  // mesmo PLATFORM_EMAIL_TOKEN já usado por admin-email.js — nenhum segredo
+  // novo.
+  fastify.get('/api/whatsapp/platform-eventos', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    const token = process.env.PLATFORM_EMAIL_TOKEN;
+    if (!token) return reply.code(503).send({ error: 'PLATFORM_EMAIL_TOKEN não configurado no admin.' });
+    const platformUrl = process.env.PLATFORM_URL || 'http://platform:3003';
+    const params = new URLSearchParams();
+    if (request.query.pnid) params.set('pnid', request.query.pnid);
+    if (request.query.limit) params.set('limit', request.query.limit);
+    try {
+      const res = await fetch(`${platformUrl}/internal/whatsapp/eventos?${params.toString()}`, {
+        headers: { 'X-Internal-Token': token },
+        signal: AbortSignal.timeout(8000),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return { error: json.error || `Platform respondeu ${res.status}` };
+      return json;
+    } catch (erro) {
+      return { error: `Platform indisponível: ${erro.message}` };
+    }
+  });
 }
 
 module.exports = { registerAdminWhatsappMetaRoutes };
