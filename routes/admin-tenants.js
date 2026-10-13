@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const planos = require('../lib/planos');
 const { calcularTrialTenant, statusContaTenant } = require('../lib/trial-conta');
 const { montarResumoPagamentos } = require('../lib/pagamentos');
+const { acessosTemporariosDoTenant } = require('./admin-acessos-temporarios');
 
 // CHECK da coluna tenants.segmento (migration 018) — legado, só o CRUD de
 // tenants do admin ainda usa (cadastro self-service migrou pra segmento_id
@@ -273,6 +274,9 @@ function registerAdminTenantsRoutes(fastify, pool) {
     // Indicador de trial somente leitura (US31/CA05) — todo o cálculo de
     // datas acontece aqui; o frontend só formata e exibe.
     const trial = calcularTrialTenant(tenant);
+    // US16c — acessos temporários concedidos a usuários de outros tenants
+    // (ver routes/admin-acessos-temporarios.js, dono do conceito).
+    const acessosTemporarios = await acessosTemporariosDoTenant(pool, id);
 
     return {
       ...tenant,
@@ -289,6 +293,7 @@ function registerAdminTenantsRoutes(fastify, pool) {
       contagens: contagemRows[0],
       whatsapp_conectado: Boolean(tenant.meta_phone_number_id),
       whatsapp_numero: (numeroRows[0] && numeroRows[0].telefone) || tenant.telefone || null,
+      acessos_temporarios: acessosTemporarios,
     };
   });
 

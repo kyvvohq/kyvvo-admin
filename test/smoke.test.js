@@ -43,7 +43,7 @@ test('authenticateAdmin aceita token do namespace admin', async () => {
 
 test('rotas de gestão registradas e protegidas (401 sem token)', async () => {
   const app = await build();
-  for (const url of ['/api/tenants', '/api/assinaturas', '/api/planos', '/api/usuarios/00000000-0000-0000-0000-000000000000', '/api/numeros-prontos', '/api/whatsapp/wabas', '/api/whatsapp/templates', '/api/ia-uso', '/api/configuracoes/studio', '/api/administradores', '/api/mensagens', '/api/eventos-catalogo', '/api/whatsapp/crm-tenants', '/api/whatsapp/crm-numeros', '/api/whatsapp/disparos-catalogo', '/api/email/modelos', '/api/email/configuracoes', '/api/email/envios', '/api/email/supressoes']) {
+  for (const url of ['/api/tenants', '/api/assinaturas', '/api/planos', '/api/usuarios/00000000-0000-0000-0000-000000000000', '/api/usuarios-busca?q=abc', '/api/numeros-prontos', '/api/whatsapp/wabas', '/api/whatsapp/templates', '/api/ia-uso', '/api/configuracoes/studio', '/api/administradores', '/api/mensagens', '/api/eventos-catalogo', '/api/whatsapp/crm-tenants', '/api/whatsapp/crm-numeros', '/api/whatsapp/disparos-catalogo', '/api/email/modelos', '/api/email/configuracoes', '/api/email/envios', '/api/email/supressoes']) {
     const res = await app.inject({ method: 'GET', url });
     assert.equal(res.statusCode, 401, `${url} deveria exigir auth`);
   }
