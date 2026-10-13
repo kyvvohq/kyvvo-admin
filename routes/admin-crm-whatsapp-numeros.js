@@ -120,6 +120,17 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
       return { error: erro.message };
     }
   });
+
+  // Testa a chave da Anthropic de verdade (kyvvo-crm#146) — presença não
+  // garante validade.
+  fastify.get('/api/whatsapp/crm-testar-anthropic', { preHandler: [fastify.authenticateAdmin] }, async () => {
+    try {
+      return await chamarCrmInterno('/crm/admin-interno/testar-anthropic');
+    } catch (erro) {
+      fastify.log.error(`[crm-testar-anthropic] ${erro.message}`);
+      return { error: erro.message };
+    }
+  });
 }
 
 module.exports = { registerAdminCrmWhatsappNumerosRoutes };
