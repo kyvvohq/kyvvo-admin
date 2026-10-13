@@ -118,6 +118,89 @@ function renderSecaoNegocio(t) {
   `;
 }
 
+// Modo do agente de atendimento por IA do CRM (bot da Basic 3D Print, ver
+// kyvvo-crm/docs/runbooks/onboarding-whatsapp-basic.md) — pedido do Bruno
+// (achado ao vivo, 2026-10-13: "bot não responde" era modo "rascunho", que
+// só sugere resposta pra equipe aprovar, não manda nada sozinho) pra ver e
+// trocar sem precisar logar como o tenant na tela Atendimento do CRM.
+// Só aparece quando o módulo 'crm' está ativo pro tenant (ver renderDetalhe).
+const MODO_AGENTE_LABEL = {
+  desligado: 'Desligado',
+  rascunho: 'Rascunho (sugestões — equipe aprova antes de enviar)',
+  automatico: 'Automático (responde sozinho)',
+};
+const MODO_AGENTE_CLASSE = {
+  desligado: 'badge-status-inativo',
+  rascunho: 'badge-status-nao-ativado',
+  automatico: 'badge-status-ativo',
+};
+
+function renderSecaoAgenteCrm(config) {
+  if (!config) return '';
+  if (config.error) {
+    return `
+      <section class="secao-detalhe">
+        <h3>Agente de atendimento (CRM)</h3>
+        <p class="vazio-inline">Falha ao consultar: ${escapeHtml(config.error)}</p>
+      </section>
+    `;
+  }
+  if (!config.configurado) {
+    return `
+      <section class="secao-detalhe">
+        <h3>Agente de atendimento (CRM)</h3>
+        <span class="vazio-inline">Agente ainda não configurado pra este tenant (ver runbook de onboarding).</span>
+      </section>
+    `;
+  }
+  const horario = config.horario_atendimento;
+  return `
+    <section class="secao-detalhe">
+      <h3>Agente de atendimento (CRM)</h3>
+      <p><strong>Modo atual:</strong> <span class="badge ${MODO_AGENTE_CLASSE[config.modo] || 'badge-status-inativo'}">${escapeHtml(MODO_AGENTE_LABEL[config.modo] || config.modo)}</span></p>
+      ${horario ? `<p><strong>Horário de atendimento:</strong> ${escapeHtml(horario.inicio)}–${escapeHtml(horario.fim)} (${escapeHtml(horario.fuso)})</p>` : ''}
+      <div class="ds-campo" style="max-width:320px">
+        <label class="ds-rotulo" for="select-modo-agente">Alterar modo</label>
+        <select class="ds-select" id="select-modo-agente">
+          ${Object.keys(MODO_AGENTE_LABEL).map((m) => `<option value="${m}" ${m === config.modo ? 'selected' : ''}>${escapeHtml(MODO_AGENTE_LABEL[m])}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-acoes" style="justify-content:flex-start; margin-top:8px">
+        <button type="button" class="btn-secundario" id="btn-salvar-modo-agente">Salvar</button>
+      </div>
+    </section>
+  `;
+}
+
+async function salvarModoAgente() {
+  const select = document.getElementById('select-modo-agente');
+  const btn = document.getElementById('btn-salvar-modo-agente');
+  if (!select || !btn) return;
+  const modo = select.value;
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  btn.textContent = 'Salvando...';
+  const resultado = await api(`/api/whatsapp/crm-agente-config/${encodeURIComponent(idTenantAtual)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ modo }),
+  });
+  btn.disabled = false;
+  btn.textContent = textoOriginal;
+  if (!resultado) return;
+  if (resultado.error) {
+    mostrarToast(resultado.error, 'erro');
+    return;
+  }
+  mostrarToast('Modo do agente atualizado.');
+  crmAgenteAtual = { ...crmAgenteAtual, modo: resultado.modo };
+  renderPagina(tenantAtual, await carregarHistoricoModulos(idTenantAtual));
+}
+
+function wireEventosAgenteCrm() {
+  const btn = document.getElementById('btn-salvar-modo-agente');
+  if (btn) btn.addEventListener('click', salvarModoAgente);
+}
+
 // CA (US39.1) — pedido de "Novo número" ainda não atendido: o tenant já
 // confirmou que quer um número fornecido pela Kyvvo (POST
 // /api/whatsapp/solicitar-numero-novo) e ainda não tem meta_phone_number_id
@@ -532,6 +615,7 @@ function renderSecaoAtividade(t) {
 // tenant (que não muda com a alteração de módulo).
 let tenantAtual = null;
 let idTenantAtual = null;
+let crmAgenteAtual = null;
 
 async function carregarHistoricoModulos(id) {
   const resultado = await api(`/api/tenants/${encodeURIComponent(id)}/modulos/historico`).catch(() => null);
@@ -543,6 +627,7 @@ function renderPagina(data, historico) {
     <a class="topbar-nav-link" href="/painel.html">← Voltar para lista</a>
     <h2 class="titulo-detalhe">${escapeHtml(data.nome)}</h2>
     ${renderSecaoNegocio(data)}
+    ${renderSecaoAgenteCrm(crmAgenteAtual)}
     ${renderSecaoNumeroNovo(data)}
     ${renderSecaoResponsavel(data)}
     ${renderSecaoStatus(data)}
@@ -555,6 +640,7 @@ function renderPagina(data, historico) {
   wireEventosModulos();
   wireEventosUsuarios();
   wireEventosAcessosTemporarios();
+  wireEventosAgenteCrm();
 }
 
 // US65 — alterna um módulo pro tenant da tela atual. Em caso de sucesso,
@@ -611,6 +697,8 @@ async function renderDetalhe() {
   }
 
   tenantAtual = data;
+  const crmAtivo = (data.modulos_ativos || []).some((m) => m.key === 'crm');
+  crmAgenteAtual = crmAtivo ? await api(`/api/whatsapp/crm-agente-config/${encodeURIComponent(id)}`) : null;
   renderPagina(data, historico);
 }
 
