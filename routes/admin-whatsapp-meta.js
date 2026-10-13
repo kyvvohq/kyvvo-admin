@@ -297,6 +297,29 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
       return { error: `Platform indisponível: ${erro.message}` };
     }
   });
+
+  // Confere e corrige a causa real do achado ao vivo (2026-10-13): WABA da
+  // Basic 3D Print conectada (CONNECTED/APPROVED) mas sem NENHUM evento de
+  // mensagem chegando no platform — a WABA nunca tinha sido assinada pro
+  // webhook (ver comentário em listarInscricoesWebhook).
+  fastify.get('/api/whatsapp/wabas/:wabaId/inscricao-webhook', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    try {
+      const inscricoes = await metaWhatsappService.listarInscricoesWebhook(request.params.wabaId);
+      const inscrito = inscricoes.some((i) => i.whatsapp_business_api_data && i.whatsapp_business_api_data.id === process.env.META_APP_ID);
+      return { inscrito, inscricoes };
+    } catch (erro) {
+      return reply.code(502).send({ error: `Falha ao consultar a Meta: ${erro.message}` });
+    }
+  });
+
+  fastify.post('/api/whatsapp/wabas/:wabaId/inscricao-webhook', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    try {
+      await metaWhatsappService.assinarWebhooksComSistema(request.params.wabaId);
+      return { ok: true };
+    } catch (erro) {
+      return reply.code(502).send({ error: `Falha ao assinar na Meta: ${erro.message}` });
+    }
+  });
 }
 
 module.exports = { registerAdminWhatsappMetaRoutes };
