@@ -111,6 +111,9 @@ function renderSecaoNegocio(t) {
           ? `<a href="https://wa.me/55${String(t.whatsapp).replace(/\D/g, '')}" target="_blank" rel="noopener">${formatarWhatsapp(t.whatsapp)}</a>`
           : '—'
       }</p>
+      <p><strong>WhatsApp conectado (automação):</strong> ${
+        t.whatsapp_conectado ? `Sim — ${formatarWhatsapp(t.whatsapp_numero)}` : 'Não conectado'
+      }</p>
     </section>
   `;
 }

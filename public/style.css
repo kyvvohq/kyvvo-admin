@@ -3062,62 +3062,6 @@ button.loading::after {
 .tabela-contato-nome { color: var(--text); }
 .tabela-contato-email { color: var(--muted-strong); font-size: 12px; margin-top: 2px; }
 
-/* Painel lateral "Ver detalhes" — desliza da direita, ao contrário do modal
-   centralizado (.modal-overlay/.modal-card) usado pro resto do CRUD. Reusa
-   a mesma paleta (bg var(--card), borda var(--border)) pra manter consistência visual
-   com o resto do admin. */
-.drawer-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  background: rgba(5, 7, 14, 0.72);
-  backdrop-filter: blur(4px);
-}
-
-.drawer-painel {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
-  max-width: 420px;
-  overflow-y: auto;
-  background: var(--card);
-  border-left: 1px solid var(--border);
-  padding: 28px;
-}
-
-.drawer-close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  width: 32px;
-  height: 32px;
-  margin: 0;
-  padding: 0;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
-  font-size: 15px;
-}
-
-.drawer-close:hover { background: rgba(255, 255, 255, 0.12); }
-
-.drawer-secao { margin-top: 24px; }
-.drawer-secao h4 {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--muted-strong);
-  margin-bottom: 8px;
-}
-.drawer-secao p { font-size: 14px; margin: 4px 0; }
-.drawer-secao p strong { color: var(--muted-strong); font-weight: 500; margin-right: 4px; }
-
-@media (max-width: 480px) {
-  .drawer-painel { max-width: 100%; }
-}
-
 /* Telas E-mail (email-*.html): botões no tamanho do conteúdo — o `button`
    global é largura total (herança das telas de login/form). */
 .btn-auto { width: auto; margin: 0; padding: 10px 18px; }
