@@ -305,6 +305,216 @@ function wireEventosUsuarios() {
   });
 }
 
+// ---------- Modal genérico (mesma implementação de app.js/usuarios.js) ----------
+function escFecharModal(e) {
+  if (e.key === 'Escape') fecharModal();
+}
+
+function fecharModal() {
+  const overlay = document.getElementById('modal-overlay');
+  if (overlay) overlay.remove();
+  document.removeEventListener('keydown', escFecharModal);
+}
+
+function abrirModal(tituloHtml, conteudoHtml) {
+  fecharModal();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.id = 'modal-overlay';
+  overlay.innerHTML = `
+    <div class="modal-card">
+      <button class="modal-close" id="modal-close" aria-label="Fechar">✕</button>
+      ${tituloHtml}
+      ${conteudoHtml}
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  document.getElementById('modal-close').addEventListener('click', fecharModal);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) fecharModal(); });
+  document.addEventListener('keydown', escFecharModal);
+  return overlay;
+}
+
+// US16c — acesso temporário de usuário de outro tenant (só documentação/
+// auditoria, ver routes/admin-acessos-temporarios.js pro porquê de não
+// mexer em login/sessão de verdade).
+const PRAZOS_ACESSO_TEMPORARIO = [1, 3, 7, 14, 30];
+
+function renderLinhaAcessoTemporario(a) {
+  const expirado = !a.revogado_em && new Date(a.expira_em) < new Date();
+  const statusLabel = a.revogado_em ? 'Revogado' : expirado ? 'Expirado' : 'Ativo';
+  const statusClasse = a.revogado_em ? 'badge-status-inativo' : expirado ? 'badge-status-nao-ativado' : 'badge-status-ativo';
+  return `
+    <tr>
+      <td>${escapeHtml(a.usuario_nome || a.usuario_email)}<br><span class="tabela-contato-email">${escapeHtml(a.usuario_email)} · ${escapeHtml(a.usuario_tenant_nome)}</span></td>
+      <td>${escapeHtml(a.motivo)}</td>
+      <td>${formatarDataHora(a.concedido_em)}${a.concedido_por_nome ? ` (${escapeHtml(a.concedido_por_nome)})` : ''}</td>
+      <td>${formatarDataHora(a.expira_em)}</td>
+      <td><span class="badge ${statusClasse}">${statusLabel}</span></td>
+      <td>${
+        a.revogado_em
+          ? '—'
+          : `<button type="button" class="btn-secundario btn-tabela" data-revogar-acesso="${escapeHtml(a.id)}">Revogar</button>`
+      }</td>
+    </tr>
+  `;
+}
+
+function renderSecaoAcessosTemporarios(acessos) {
+  return `
+    <section class="secao-detalhe">
+      <h3>Acessos temporários</h3>
+      <p class="vazio-inline">Registro de usuários de OUTROS tenants com permissão temporária pra validar alguma informação — não loga de verdade, é só auditoria de uma permissão concedida por outro canal.</p>
+      ${
+        acessos.length
+          ? `
+        <div class="tabela-wrapper">
+          <table class="tabela-tenants">
+            <thead><tr><th>Usuário</th><th>Motivo</th><th>Concedido em</th><th>Expira em</th><th>Status</th><th></th></tr></thead>
+            <tbody>${acessos.map(renderLinhaAcessoTemporario).join('')}</tbody>
+          </table>
+        </div>
+      `
+          : '<span class="vazio-inline">Nenhum acesso temporário concedido</span>'
+      }
+      <div class="modal-acoes" style="justify-content:flex-start; margin-top:12px">
+        <button type="button" class="btn-secundario" id="btn-conceder-acesso">Conceder acesso temporário</button>
+      </div>
+    </section>
+  `;
+}
+
+let timeoutBuscaUsuario = null;
+let usuarioEscolhido = null;
+
+function renderModalConcederAcesso() {
+  abrirModal('<h3>Conceder acesso temporário</h3>', `
+    <div class="ds-form">
+      <div class="ds-campo">
+        <label class="ds-rotulo" for="busca-usuario-acesso">Usuário (nome ou e-mail)</label>
+        <input class="ds-input" type="search" id="busca-usuario-acesso" placeholder="Digite ao menos 3 caracteres..." autocomplete="off">
+        <div id="resultado-busca-usuario"></div>
+      </div>
+      <div class="ds-campo">
+        <label class="ds-rotulo" for="motivo-acesso">Motivo</label>
+        <input class="ds-input" type="text" id="motivo-acesso" placeholder="Ex.: validar configuração X a pedido do suporte">
+      </div>
+      <div class="ds-campo">
+        <label class="ds-rotulo" for="dias-acesso">Prazo</label>
+        <select class="ds-select" id="dias-acesso">
+          ${PRAZOS_ACESSO_TEMPORARIO.map((d) => `<option value="${d}" ${d === 7 ? 'selected' : ''}>${d} dia${d === 1 ? '' : 's'}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-erro" id="erro-conceder-acesso"></div>
+      <div class="ds-form-acoes">
+        <button type="button" class="ds-btn ds-btn-secundario" id="btn-cancelar-conceder">Cancelar</button>
+        <button type="button" class="ds-btn ds-btn-primario" id="btn-confirmar-conceder" disabled>Conceder</button>
+      </div>
+    </div>
+  `);
+
+  usuarioEscolhido = null;
+  document.getElementById('btn-cancelar-conceder').addEventListener('click', fecharModal);
+  document.getElementById('btn-confirmar-conceder').addEventListener('click', confirmarConcessaoAcesso);
+
+  const inputBusca = document.getElementById('busca-usuario-acesso');
+  inputBusca.addEventListener('input', () => {
+    usuarioEscolhido = null;
+    document.getElementById('btn-confirmar-conceder').disabled = true;
+    clearTimeout(timeoutBuscaUsuario);
+    timeoutBuscaUsuario = setTimeout(() => buscarUsuarioParaAcesso(inputBusca.value.trim()), 350);
+  });
+}
+
+async function buscarUsuarioParaAcesso(q) {
+  const alvo = document.getElementById('resultado-busca-usuario');
+  if (!alvo) return;
+  if (q.length < 3) {
+    alvo.innerHTML = '';
+    return;
+  }
+  const resultado = await api(`/api/usuarios-busca?q=${encodeURIComponent(q)}&excluir_tenant=${encodeURIComponent(idTenantAtual)}`);
+  if (!alvo.isConnected) return; // modal já foi fechado/trocado antes da resposta chegar
+  const usuarios = (resultado && resultado.usuarios) || [];
+  if (!usuarios.length) {
+    alvo.innerHTML = '<p class="vazio-inline">Nenhum usuário encontrado (de outro tenant).</p>';
+    return;
+  }
+  alvo.innerHTML = usuarios.map((u) => `
+    <button type="button" class="btn-secundario btn-tabela" style="display:block; width:100%; text-align:left; margin-top:4px" data-escolher-usuario="${escapeHtml(u.id)}">
+      ${escapeHtml(u.nome || u.email)} · ${escapeHtml(u.email)} · ${escapeHtml(u.tenant_nome)}
+    </button>
+  `).join('');
+  alvo.querySelectorAll('[data-escolher-usuario]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      usuarioEscolhido = { id: btn.dataset.escolherUsuario, label: btn.textContent.trim() };
+      document.getElementById('busca-usuario-acesso').value = usuarioEscolhido.label;
+      alvo.innerHTML = '';
+      document.getElementById('btn-confirmar-conceder').disabled = false;
+    });
+  });
+}
+
+async function confirmarConcessaoAcesso() {
+  const erroEl = document.getElementById('erro-conceder-acesso');
+  erroEl.textContent = '';
+  if (!usuarioEscolhido) {
+    erroEl.textContent = 'Escolha um usuário na busca.';
+    return;
+  }
+  const motivo = document.getElementById('motivo-acesso').value.trim();
+  const dias = document.getElementById('dias-acesso').value;
+  if (!motivo) {
+    erroEl.textContent = 'Informe o motivo.';
+    return;
+  }
+
+  const resultado = await api(`/api/tenants/${encodeURIComponent(idTenantAtual)}/acessos-temporarios`, {
+    method: 'POST',
+    body: JSON.stringify({ usuario_id: usuarioEscolhido.id, motivo, dias }),
+  });
+  if (!resultado) return;
+  if (resultado.error) {
+    erroEl.textContent = resultado.error;
+    return;
+  }
+  fecharModal();
+  mostrarToast('Acesso temporário concedido com sucesso.');
+  await recarregarAcessosTemporarios();
+}
+
+async function revogarAcessoTemporario(acessoId) {
+  const resultado = await api(`/api/tenants/${encodeURIComponent(idTenantAtual)}/acessos-temporarios/${encodeURIComponent(acessoId)}`, {
+    method: 'DELETE',
+  });
+  if (!resultado) return;
+  if (resultado.error) {
+    mostrarToast(resultado.error, 'erro');
+    return;
+  }
+  mostrarToast('Acesso revogado.');
+  await recarregarAcessosTemporarios();
+}
+
+// Recarrega só a seção de acessos (a mesma lista já vem embutida no GET
+// completo do tenant — mais simples reaproveitar do que criar um GET
+// dedicado só pra isto) e re-renderiza a página inteira, igual o padrão já
+// usado por alterarModulo.
+async function recarregarAcessosTemporarios() {
+  const data = await api(`/api/tenants/${encodeURIComponent(idTenantAtual)}`);
+  if (!data || data.error) return;
+  tenantAtual = data;
+  renderPagina(tenantAtual, await carregarHistoricoModulos(idTenantAtual));
+}
+
+function wireEventosAcessosTemporarios() {
+  const btnConceder = document.getElementById('btn-conceder-acesso');
+  if (btnConceder) btnConceder.addEventListener('click', renderModalConcederAcesso);
+  conteudo.querySelectorAll('[data-revogar-acesso]').forEach((btn) => {
+    btn.addEventListener('click', () => revogarAcessoTemporario(btn.dataset.revogarAcesso));
+  });
+}
+
 function renderSecaoAtividade(t) {
   const c = t.contagens || {};
   return `
@@ -337,12 +547,14 @@ function renderPagina(data, historico) {
     ${renderSecaoResponsavel(data)}
     ${renderSecaoStatus(data)}
     ${renderSecaoUsuarios(data.usuarios || [])}
+    ${renderSecaoAcessosTemporarios(data.acessos_temporarios || [])}
     ${renderSecaoModulos(data)}
     ${renderSecaoHistoricoModulos(historico)}
     ${renderSecaoAtividade(data)}
   `;
   wireEventosModulos();
   wireEventosUsuarios();
+  wireEventosAcessosTemporarios();
 }
 
 // US65 — alterna um módulo pro tenant da tela atual. Em caso de sucesso,
