@@ -93,6 +93,21 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
       return { error: erro.message };
     }
   });
+
+  // Troca o modo direto pelo admin (kyvvo-crm#142) — pedido do Bruno: ver e
+  // alterar sem precisar logar como o tenant na tela de Atendimento do CRM.
+  fastify.patch('/api/whatsapp/crm-agente-config/:tenantId', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    const { modo } = request.body || {};
+    try {
+      return await chamarCrmInterno(`/crm/admin-interno/agente-config/${encodeURIComponent(request.params.tenantId)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ modo }),
+      });
+    } catch (erro) {
+      fastify.log.error(`[crm-agente-config] ${erro.message}`);
+      return reply.code(400).send({ error: erro.message });
+    }
+  });
 }
 
 module.exports = { registerAdminCrmWhatsappNumerosRoutes };
