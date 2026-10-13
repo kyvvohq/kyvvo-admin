@@ -82,6 +82,17 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
       return { error: erro.message };
     }
   });
+
+  // Modo do agente de atendimento (desligado/rascunho/automatico) por
+  // tenant — diagnóstico de "bot não responde" sem query manual no banco.
+  fastify.get('/api/whatsapp/crm-agente-config/:tenantId', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
+    try {
+      return await chamarCrmInterno(`/crm/admin-interno/agente-config/${encodeURIComponent(request.params.tenantId)}`);
+    } catch (erro) {
+      fastify.log.error(`[crm-agente-config] ${erro.message}`);
+      return { error: erro.message };
+    }
+  });
 }
 
 module.exports = { registerAdminCrmWhatsappNumerosRoutes };
