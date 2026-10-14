@@ -320,6 +320,42 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
       return reply.code(502).send({ error: `Falha ao assinar na Meta: ${erro.message}` });
     }
   });
+
+  // Diagnóstico pontual (achado ao vivo, 2026-10-14): card "Conversas hoje"
+  // do painel do Studio conta direto de conversas_ia (sem join com
+  // clientes), mas a lista de conversas exige JOIN com clientes — se o
+  // cliente_id gravado em conversas_ia não bate com nenhuma linha em
+  // clientes do tenant, a conversa soma no card e some da lista. Pool
+  // compartilhado entre admin e Studio (mesmo banco "core" via `tenants`).
+  fastify.get('/api/studio/diagnostico-conversas/:tenantId', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
+    const { tenantId } = request.params;
+    const { rows: conversasHoje } = await pool.query(
+      `SELECT DISTINCT ci.cliente_id, MAX(ci.criado_em) AS ultima_em
+         FROM conversas_ia ci
+        WHERE ci.tenant_id = $1 AND ci.role = 'user'
+          AND (ci.criado_em AT TIME ZONE 'America/Sao_Paulo')::date = (now() AT TIME ZONE 'America/Sao_Paulo')::date
+        GROUP BY ci.cliente_id`,
+      [tenantId],
+    );
+    const ids = conversasHoje.map((r) => r.cliente_id);
+    const { rows: clientesEncontrados } = ids.length
+      ? await pool.query('SELECT id, tenant_id, nome, telefone, excluido_em FROM clientes WHERE id = ANY($1::uuid[])', [ids])
+      : { rows: [] };
+    const encontradosPorId = new Map(clientesEncontrados.map((c) => [c.id, c]));
+    return {
+      conversas_hoje: conversasHoje.map((r) => {
+        const cliente = encontradosPorId.get(r.cliente_id);
+        return {
+          cliente_id: r.cliente_id,
+          ultima_em: r.ultima_em,
+          cliente_existe: !!cliente,
+          cliente_tenant_bate: !!cliente && cliente.tenant_id === tenantId,
+          cliente_excluido: !!cliente && !!cliente.excluido_em,
+          cliente_nome: cliente ? cliente.nome : null,
+        };
+      }),
+    };
+  });
 }
 
 module.exports = { registerAdminWhatsappMetaRoutes };
