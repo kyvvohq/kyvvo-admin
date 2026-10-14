@@ -370,6 +370,33 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
       }),
     };
   });
+
+  // Diagnóstico pontual (achado ao vivo, 2026-10-14): convite de acesso de
+  // profissional (Studio) criado, mas o e-mail não chegou. Pool
+  // compartilhado entre admin e Studio (mesmo banco "core", confirmado com
+  // o diagnóstico de conversas_ia acima) — confere se o convite existe de
+  // verdade, qual o status, e se o e-mail de confirmação (verify-token do
+  // cadastro, não o do convite) já estava pendente antes.
+  fastify.get('/api/studio/diagnostico-convite', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    const email = (request.query.email || '').toLowerCase().trim();
+    if (!email) return reply.code(400).send({ error: 'informe ?email=' });
+    const { rows: convites } = await pool.query(
+      `SELECT c.id, c.tenant_id, t.nome AS tenant_nome, c.role, c.profissional_id, p.nome AS profissional_nome,
+              c.status, c.expires_at, c.criado_em, c.convidado_por, u.email AS convidado_por_email
+         FROM convites_equipe c
+         JOIN tenants t ON t.id = c.tenant_id
+         LEFT JOIN profissionais p ON p.id = c.profissional_id
+         LEFT JOIN usuarios u ON u.id = c.convidado_por
+        WHERE lower(c.email) = $1
+        ORDER BY c.criado_em DESC`,
+      [email],
+    );
+    const { rows: usuarios } = await pool.query(
+      'SELECT id, tenant_id, role, ativo, email_verified, profissional_id, criado_em FROM usuarios WHERE lower(email) = $1',
+      [email],
+    );
+    return { convites, usuarios };
+  });
 }
 
 module.exports = { registerAdminWhatsappMetaRoutes };
