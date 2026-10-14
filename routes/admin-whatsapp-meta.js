@@ -342,7 +342,21 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
       ? await pool.query('SELECT id, tenant_id, nome, telefone, excluido_em FROM clientes WHERE id = ANY($1::uuid[])', [ids])
       : { rows: [] };
     const encontradosPorId = new Map(clientesEncontrados.map((c) => [c.id, c]));
+    // Réplica exata da query de GET /api/whatsapp/conversas (kyvvo-studio
+    // server/panel/routes/whatsapp-config.js) — pra confirmar se o backend
+    // devolveria essas conversas se chamado corretamente.
+    const { rows: listaResultante } = await pool.query(
+      `SELECT c.id AS cliente_id, c.nome, c.telefone, c.status_conversa, MAX(ci.criado_em) AS ultima_mensagem_em
+         FROM clientes c
+         JOIN conversas_ia ci ON ci.cliente_id = c.id
+        WHERE c.tenant_id = $1
+        GROUP BY c.id, c.nome, c.telefone, c.status_conversa
+        ORDER BY ultima_mensagem_em DESC
+        LIMIT 50`,
+      [tenantId],
+    );
     return {
+      lista_resultante: listaResultante,
       conversas_hoje: conversasHoje.map((r) => {
         const cliente = encontradosPorId.get(r.cliente_id);
         return {
