@@ -419,6 +419,13 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
     );
     return { usuarios: rows };
   });
+
+  // Catálogo de planos do Studio (só leitura) — achar a chave exata de um
+  // plano pelo nome antes de uma troca manual.
+  fastify.get('/api/studio/planos', { preHandler: [fastify.authenticateAdmin] }, async () => {
+    const { rows } = await pool.query('SELECT chave, slug, nome, preco_mensal, ativo FROM planos ORDER BY preco_mensal');
+    return { planos: rows };
+  });
 }
 
 module.exports = { registerAdminWhatsappMetaRoutes };
