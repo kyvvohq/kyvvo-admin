@@ -395,7 +395,16 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
       'SELECT id, tenant_id, role, ativo, email_verified, profissional_id, criado_em FROM usuarios WHERE lower(email) = $1',
       [email],
     );
-    return { convites, usuarios };
+    // Achado provável: "criar o profissional" (Cadastro > Profissionais,
+    // só nome/telefone/e-mail — recurso de agenda) e "convidar pra acesso"
+    // (Equipe > Convidar membro, dispara o e-mail) são duas ações
+    // separadas. Busca por nome/e-mail parecido em profissionais pra
+    // confirmar se é isso, não um bug no envio.
+    const { rows: profissionaisParecidos } = await pool.query(
+      `SELECT id, tenant_id, nome, email FROM profissionais WHERE lower(coalesce(nome, '')) LIKE $1 OR lower(coalesce(email, '')) = $2`,
+      [`%${email}%`, email],
+    );
+    return { convites, usuarios, profissionaisParecidos };
   });
 }
 
