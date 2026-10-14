@@ -406,6 +406,19 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
     );
     return { convites, usuarios, profissionaisParecidos };
   });
+
+  // Diagnóstico pontual (achado ao vivo, 2026-10-14): "não tenho o menu
+  // Equipe" — esse item só aparece no front pra role='administrador'
+  // (denylist [data-somente-admin], escondido quando role==='operador').
+  // Lista quem é usuário de um tenant e com qual role, pra confirmar se é
+  // isso (sem administrador na conta) em vez de bug novo.
+  fastify.get('/api/studio/diagnostico-usuarios/:tenantId', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
+    const { rows } = await pool.query(
+      'SELECT id, email, nome, role, ativo, email_verified, profissional_id, criado_em FROM usuarios WHERE tenant_id = $1 ORDER BY criado_em',
+      [request.params.tenantId],
+    );
+    return { usuarios: rows };
+  });
 }
 
 module.exports = { registerAdminWhatsappMetaRoutes };
