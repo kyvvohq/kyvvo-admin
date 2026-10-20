@@ -190,10 +190,17 @@ function registerAdminEmailRoutes(fastify, pool) {
   // `tenant_id` (aba E-mail do detalhe do tenant, pedido do Bruno,
   // 2026-10-20) — platform.email_envios não tem tenant_id (é só um log de
   // destinatário/assunto, ver db/010_email.sql do platform), então filtra
-  // por quem é dono do e-mail: os usuários daquele tenant. Com tenant_id
-  // informado, também devolve `porStatusMes`/`totalMes` (mês corrente) junto
-  // de `porStatus`/`total` (todo o histórico) — os cards "geral" x "mês
-  // atual" do topo da aba.
+  // por quem é dono do e-mail: usuários do tenant (login/convite já aceito)
+  // OU convites ainda pendentes (convites_equipe.email — achado ao vivo:
+  // "Bruno Alves te convidou..." é mandado ANTES da pessoa virar usuário,
+  // então só usuarios.email perdia esse e-mail). Não cobre ainda os e-mails
+  // tagueados 'CRM' pro cliente final (crm_clientes.email) — essa tabela
+  // vive isolada no banco do próprio kyvvo-crm (mesmo padrão do People),
+  // só alcançável via chamada interna, não por JOIN direto daqui; fica como
+  // lacuna conhecida, não resolvida nesta rodada. Com tenant_id informado,
+  // também devolve `porStatusMes`/`totalMes` (mês corrente) junto de
+  // `porStatus`/`total` (todo o histórico) — os cards "geral" x "mês atual"
+  // do topo da aba.
   fastify.get('/api/email/envios', auth, async (request, reply) => {
     const { produto, status, q, tenant_id: tenantId } = request.query || {};
     const where = [];
@@ -206,7 +213,13 @@ function registerAdminEmailRoutes(fastify, pool) {
     if (q && String(q).trim()) { params.push(`%${String(q).trim().toLowerCase()}%`); where.push(`(lower(destinatario) LIKE $${params.length} OR lower(assunto) LIKE $${params.length})`); }
     if (tenantId) {
       params.push(tenantId);
-      where.push(`lower(destinatario) IN (SELECT lower(email) FROM usuarios WHERE tenant_id = $${params.length})`);
+      where.push(
+        `lower(destinatario) IN (
+           SELECT lower(email) FROM usuarios WHERE tenant_id = $${params.length}
+           UNION
+           SELECT lower(email) FROM convites_equipe WHERE tenant_id = $${params.length}
+         )`
+      );
     }
     const filtro = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const [lista, totais, totaisMes] = await Promise.all([

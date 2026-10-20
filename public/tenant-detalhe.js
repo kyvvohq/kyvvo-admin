@@ -916,6 +916,7 @@ function renderAbaEmail(dados) {
   if (dados.error) return `<p class="vazio-inline">Falha ao consultar: ${escapeHtml(dados.error)}</p>`;
   const envios = dados.envios || [];
   return `
+    <p class="vazio-inline" style="margin-bottom:12px">E-mails pra usuários do portal e convites — não inclui notificações ao cliente final do CRM (aniversário, NF-e etc.), que vivem no banco isolado do CRM.</p>
     <div style="display:flex; gap:16px; flex-wrap:wrap">
       ${renderCardsEmail('Geral (todo o histórico)', dados.porStatus || {}, dados.total || 0)}
       ${renderCardsEmail('Mês atual', dados.porStatusMes || {}, dados.totalMes || 0)}
