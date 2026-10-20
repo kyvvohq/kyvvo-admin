@@ -361,6 +361,21 @@ function registerAdminTenantsRoutes(fastify, pool) {
     return { modulos: await modulosDoTenantParaAdmin(id) };
   });
 
+  // Aba Geral do detalhe do tenant (pedido do Bruno, 2026-10-20) — histórico
+  // de cobrança/plano. Separado do GET /api/tenants/:id principal de
+  // propósito: monta uma chamada de verdade pra Asaas (montarResumoPagamentos
+  // já faz isso pra US37/assinaturas), então só busca quando a aba é aberta,
+  // não em toda carga da página de detalhe.
+  fastify.get('/api/tenants/:id/cobranca', { preHandler: [fastify.authenticateAdmin] }, async (request, reply) => {
+    const { id } = request.params;
+    const { rows } = await pool.query('SELECT * FROM tenants WHERE id = $1', [id]);
+    const tenant = rows[0];
+    if (!tenant) {
+      return reply.code(404).send({ error: 'Tenant não encontrado' });
+    }
+    return montarResumoPagamentos(tenant);
+  });
+
   // US65/CA05 — histórico cronológico das alterações de módulos de um tenant.
   fastify.get('/api/tenants/:id/modulos/historico', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
     const { id } = request.params;
