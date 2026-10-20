@@ -1,6 +1,14 @@
 // Página de detalhe do tenant da área admin da Kyvvo (US28) — consome
 // GET /api/tenants/:id (dados consolidados). Chegou aqui a partir de
 // um clique na linha/"Ver detalhes" da listagem (US26/US27).
+//
+// Reorganizado em abas (pedido do Bruno, 2026-10-20): Geral, WhatsApp,
+// Disparo, Consumo, E-mail. Geral/WhatsApp usam só o payload já carregado
+// em renderDetalhe(); Disparo/Consumo/E-mail buscam sob demanda (só quando a
+// aba é aberta pela primeira vez) e ficam em cache em memória pro resto da
+// visita a esta página — evita 3 chamadas extras (2 delas pra Meta/Asaas)
+// em toda carga, quando o admin só olha Geral na maioria das vezes. Mesmo
+// padrão visual de abas de produto-config.js (ds-abas-lista/data-aba).
 
 // token / identificação do admin / dropdown "Sair" agora vivem em shell.js
 // (US53), carregado antes deste script em todas as páginas admin.
@@ -56,6 +64,14 @@ function escapeHtml(valor) {
   }[c]));
 }
 
+// Célula de tabela com o valor cheio no title (hover) e cortado no texto —
+// usado na aba E-mail (destinatário truncado, CA pedido pelo Bruno).
+function celulaTruncada(valor, max = 28) {
+  const s = String(valor ?? '');
+  const curto = s.length > max ? `${s.slice(0, max)}…` : s;
+  return `<span title="${escapeHtml(s)}">${escapeHtml(curto)}</span>`;
+}
+
 // WhatsApp é guardado só com dígitos (DDD + número, sem DDI) — mesmo
 // formatador da listagem (US26/CA02).
 function formatarWhatsapp(digitos) {
@@ -73,6 +89,10 @@ function formatarDataHora(iso) {
   const data = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const hora = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   return `${data} ${hora}`;
+}
+
+function formatarPreco(valor) {
+  return valor != null ? `R$ ${Number(valor).toFixed(2).replace('.', ',')}` : '—';
 }
 
 function idDaUrl() {
@@ -100,126 +120,32 @@ function mostrarToast(mensagem, tipo = 'sucesso') {
   }, 4000);
 }
 
+// ============================================================
+// Aba Geral
+// ============================================================
+
 function renderSecaoNegocio(t) {
   return `
     <section class="secao-detalhe">
       <h3>Dados do negócio</h3>
       <p><strong>Nome da empresa:</strong> ${escapeHtml(t.nome)}</p>
       <p><strong>Segmento:</strong> ${t.segmento ? escapeHtml(SEGMENTOS_ADMIN[t.segmento] || t.segmento) : '—'}</p>
-      <p><strong>WhatsApp:</strong> ${
+      <p><strong>WhatsApp de contato:</strong> ${
         t.whatsapp
           ? `<a href="https://wa.me/55${String(t.whatsapp).replace(/\D/g, '')}" target="_blank" rel="noopener">${formatarWhatsapp(t.whatsapp)}</a>`
           : '—'
       }</p>
-      <p><strong>WhatsApp conectado (automação):</strong> ${
-        t.whatsapp_conectado ? `Sim — ${formatarWhatsapp(t.whatsapp_numero)}` : 'Não conectado'
-      }</p>
-    </section>
-  `;
-}
-
-// Modo do agente de atendimento por IA do CRM (bot da Basic 3D Print, ver
-// kyvvo-crm/docs/runbooks/onboarding-whatsapp-basic.md) — pedido do Bruno
-// (achado ao vivo, 2026-10-13: "bot não responde" era modo "rascunho", que
-// só sugere resposta pra equipe aprovar, não manda nada sozinho) pra ver e
-// trocar sem precisar logar como o tenant na tela Atendimento do CRM.
-// Só aparece quando o módulo 'crm' está ativo pro tenant (ver renderDetalhe).
-const MODO_AGENTE_LABEL = {
-  desligado: 'Desligado',
-  rascunho: 'Rascunho (sugestões — equipe aprova antes de enviar)',
-  automatico: 'Automático (responde sozinho)',
-};
-const MODO_AGENTE_CLASSE = {
-  desligado: 'badge-status-inativo',
-  rascunho: 'badge-status-nao-ativado',
-  automatico: 'badge-status-ativo',
-};
-
-function renderSecaoAgenteCrm(config) {
-  if (!config) return '';
-  if (config.error) {
-    return `
-      <section class="secao-detalhe">
-        <h3>Agente de atendimento (CRM)</h3>
-        <p class="vazio-inline">Falha ao consultar: ${escapeHtml(config.error)}</p>
-      </section>
-    `;
-  }
-  if (!config.configurado) {
-    return `
-      <section class="secao-detalhe">
-        <h3>Agente de atendimento (CRM)</h3>
-        <span class="vazio-inline">Agente ainda não configurado pra este tenant (ver runbook de onboarding).</span>
-      </section>
-    `;
-  }
-  const horario = config.horario_atendimento;
-  return `
-    <section class="secao-detalhe">
-      <h3>Agente de atendimento (CRM)</h3>
-      <p><strong>Modo atual:</strong> <span class="badge ${MODO_AGENTE_CLASSE[config.modo] || 'badge-status-inativo'}">${escapeHtml(MODO_AGENTE_LABEL[config.modo] || config.modo)}</span></p>
-      ${horario ? `<p><strong>Horário de atendimento:</strong> ${escapeHtml(horario.inicio)}–${escapeHtml(horario.fim)} (${escapeHtml(horario.fuso)})</p>` : ''}
-      <div class="ds-campo" style="max-width:320px">
-        <label class="ds-rotulo" for="select-modo-agente">Alterar modo</label>
-        <select class="ds-select" id="select-modo-agente">
-          ${Object.keys(MODO_AGENTE_LABEL).map((m) => `<option value="${m}" ${m === config.modo ? 'selected' : ''}>${escapeHtml(MODO_AGENTE_LABEL[m])}</option>`).join('')}
-        </select>
-      </div>
-      <div class="modal-acoes" style="justify-content:flex-start; margin-top:8px">
-        <button type="button" class="btn-secundario" id="btn-salvar-modo-agente">Salvar</button>
-      </div>
-    </section>
-  `;
-}
-
-async function salvarModoAgente() {
-  const select = document.getElementById('select-modo-agente');
-  const btn = document.getElementById('btn-salvar-modo-agente');
-  if (!select || !btn) return;
-  const modo = select.value;
-  btn.disabled = true;
-  const textoOriginal = btn.textContent;
-  btn.textContent = 'Salvando...';
-  const resultado = await api(`/api/whatsapp/crm-agente-config/${encodeURIComponent(idTenantAtual)}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ modo }),
-  });
-  btn.disabled = false;
-  btn.textContent = textoOriginal;
-  if (!resultado) return;
-  if (resultado.error) {
-    mostrarToast(resultado.error, 'erro');
-    return;
-  }
-  mostrarToast('Modo do agente atualizado.');
-  crmAgenteAtual = { ...crmAgenteAtual, modo: resultado.modo };
-  renderPagina(tenantAtual, await carregarHistoricoModulos(idTenantAtual));
-}
-
-function wireEventosAgenteCrm() {
-  const btn = document.getElementById('btn-salvar-modo-agente');
-  if (btn) btn.addEventListener('click', salvarModoAgente);
-}
-
-// CA (US39.1) — pedido de "Novo número" ainda não atendido: o tenant já
-// confirmou que quer um número fornecido pela Kyvvo (POST
-// /api/whatsapp/solicitar-numero-novo) e ainda não tem meta_phone_number_id
-// (i.e., nenhum número foi vinculado ainda via /whatsapp.html — ver
-// migration 037/US39.2). Só aparece enquanto o pedido está pendente.
-function renderSecaoNumeroNovo(t) {
-  if (!t.novo_numero_solicitado_em || t.meta_phone_number_id) return '';
-  return `
-    <section class="secao-detalhe">
-      <h3>Pedido de número novo</h3>
-      <p><strong>Solicitado em:</strong> ${formatarDataHora(t.novo_numero_solicitado_em)}</p>
-      <p><strong>DDD de preferência:</strong> ${t.novo_numero_ddd_preferencia ? escapeHtml(t.novo_numero_ddd_preferencia) : 'Sem preferência'}</p>
-      <p class="vazio-inline">Vincule um número em <a class="topbar-nav-link" href="/whatsapp.html">Admin → WhatsApp → Números prontos</a> quando houver um disponível.</p>
     </section>
   `;
 }
 
 function renderSecaoResponsavel(t) {
   const email = t.responsavel ? escapeHtml(t.responsavel.email) : null;
+  const ultimoLogin = (t.usuarios || [])
+    .map((u) => u.ultimo_login_em)
+    .filter(Boolean)
+    .sort()
+    .pop();
   return `
     <section class="secao-detalhe">
       <h3>Dados do responsável</h3>
@@ -227,6 +153,7 @@ function renderSecaoResponsavel(t) {
       <p><strong>E-mail:</strong> ${email ? `<a href="mailto:${email}">${email}</a>` : '—'}</p>
       <p><strong>Data de cadastro:</strong> ${formatarDataHora(t.cadastrado_em)}</p>
       <p><strong>Data de ativação:</strong> ${t.ativado_em ? formatarDataHora(t.ativado_em) : 'Não ativado'}</p>
+      <p><strong>Último login (qualquer usuário):</strong> ${ultimoLogin ? formatarDataHora(ultimoLogin) : '—'}</p>
     </section>
   `;
 }
@@ -264,6 +191,73 @@ function renderSecaoStatus(t) {
       <p><strong>Status atual:</strong> <span class="badge badge-status ${statusClasse}">${escapeHtml(t.status_conta)}</span></p>
       ${renderIndicadorTrial(t)}
       <p><strong>Plano atual:</strong> ${escapeHtml(t.plano_atual)}</p>
+    </section>
+  `;
+}
+
+const STATUS_COBRANCA_LABEL = {
+  CONFIRMED: 'Confirmado', RECEIVED: 'Recebido', PENDING: 'Pendente',
+  OVERDUE: 'Vencido', REFUNDED: 'Estornado', CANCELLED: 'Cancelado',
+};
+const MEIO_PAGAMENTO_LABEL = { PIX: 'Pix', CREDIT_CARD: 'Cartão de crédito', BOLETO: 'Boleto' };
+
+function renderLinhaCobranca(c) {
+  return `
+    <tr>
+      <td>${c.data ? formatarDataHora(c.data).split(' ')[0] : '—'}</td>
+      <td>${formatarPreco(c.valor)}</td>
+      <td>${c.meio ? escapeHtml(MEIO_PAGAMENTO_LABEL[c.meio] || c.meio) : '—'}</td>
+      <td>${escapeHtml(STATUS_COBRANCA_LABEL[c.status] || c.status || '—')}</td>
+    </tr>
+  `;
+}
+
+// Carregada sob demanda (GET /api/tenants/:id/cobranca chama a Asaas de
+// verdade) e plugada aqui assim que chega — ver carregarCobranca().
+function renderSecaoCobranca(cobranca) {
+  if (!cobranca) {
+    return `
+      <section class="secao-detalhe">
+        <h3>Cobrança</h3>
+        <div class="vazio">Carregando...</div>
+      </section>
+    `;
+  }
+  if (cobranca.error) {
+    return `
+      <section class="secao-detalhe">
+        <h3>Cobrança</h3>
+        <p class="vazio-inline">Falha ao consultar: ${escapeHtml(cobranca.error)}</p>
+      </section>
+    `;
+  }
+  const historico = cobranca.historico || [];
+  return `
+    <section class="secao-detalhe">
+      <h3>Cobrança</h3>
+      <p><strong>Meio de pagamento:</strong> ${
+        cobranca.meio_pagamento
+          ? `${escapeHtml(MEIO_PAGAMENTO_LABEL[cobranca.meio_pagamento] || cobranca.meio_pagamento)}${cobranca.cartao_final ? ` (final ${escapeHtml(cobranca.cartao_final)})` : ''}`
+          : '—'
+      }</p>
+      <p><strong>Próxima cobrança:</strong> ${
+        cobranca.proxima_cobranca
+          ? `${formatarPreco(cobranca.proxima_cobranca.valor)} em ${formatarDataHora(cobranca.proxima_cobranca.data).split(' ')[0]}`
+          : '—'
+      }</p>
+      <h4 style="margin-top:16px">Histórico de cobrança</h4>
+      ${
+        historico.length
+          ? `
+        <div class="tabela-wrapper">
+          <table class="tabela-tenants">
+            <thead><tr><th>Data</th><th>Valor</th><th>Meio</th><th>Status</th></tr></thead>
+            <tbody>${historico.map(renderLinhaCobranca).join('')}</tbody>
+          </table>
+        </div>
+      `
+          : '<span class="vazio-inline">Nenhuma cobrança registrada ainda.</span>'
+      }
     </section>
   `;
 }
@@ -581,13 +575,14 @@ async function revogarAcessoTemporario(acessoId) {
 
 // Recarrega só a seção de acessos (a mesma lista já vem embutida no GET
 // completo do tenant — mais simples reaproveitar do que criar um GET
-// dedicado só pra isto) e re-renderiza a página inteira, igual o padrão já
-// usado por alterarModulo.
+// dedicado só pra isto) e re-renderiza a aba atual, igual o padrão já usado
+// por alterarModulo.
 async function recarregarAcessosTemporarios() {
   const data = await api(`/api/tenants/${encodeURIComponent(idTenantAtual)}`);
   if (!data || data.error) return;
   tenantAtual = data;
-  renderPagina(tenantAtual, await carregarHistoricoModulos(idTenantAtual));
+  historicoModulosAtual = await carregarHistoricoModulos(idTenantAtual);
+  renderAba();
 }
 
 function wireEventosAcessosTemporarios() {
@@ -608,39 +603,6 @@ function renderSecaoAtividade(t) {
       <p><strong>Total de clientes cadastrados:</strong> ${c.total_clientes ?? 0}</p>
     </section>
   `;
-}
-
-// Estado da tela mantido em memória pra poder re-renderizar só as seções de
-// módulos/histórico depois de um toggle, sem refazer o GET completo do
-// tenant (que não muda com a alteração de módulo).
-let tenantAtual = null;
-let idTenantAtual = null;
-let crmAgenteAtual = null;
-
-async function carregarHistoricoModulos(id) {
-  const resultado = await api(`/api/tenants/${encodeURIComponent(id)}/modulos/historico`).catch(() => null);
-  return (resultado && resultado.historico) || [];
-}
-
-function renderPagina(data, historico) {
-  conteudo.innerHTML = `
-    <a class="topbar-nav-link" href="/painel.html">← Voltar para lista</a>
-    <h2 class="titulo-detalhe">${escapeHtml(data.nome)}</h2>
-    ${renderSecaoNegocio(data)}
-    ${renderSecaoAgenteCrm(crmAgenteAtual)}
-    ${renderSecaoNumeroNovo(data)}
-    ${renderSecaoResponsavel(data)}
-    ${renderSecaoStatus(data)}
-    ${renderSecaoUsuarios(data.usuarios || [])}
-    ${renderSecaoAcessosTemporarios(data.acessos_temporarios || [])}
-    ${renderSecaoModulos(data)}
-    ${renderSecaoHistoricoModulos(historico)}
-    ${renderSecaoAtividade(data)}
-  `;
-  wireEventosModulos();
-  wireEventosUsuarios();
-  wireEventosAcessosTemporarios();
-  wireEventosAgenteCrm();
 }
 
 // US65 — alterna um módulo pro tenant da tela atual. Em caso de sucesso,
@@ -665,8 +627,8 @@ async function alterarModulo(moduloKey, ativo, checkbox) {
 
   mostrarToast(`Módulo ${ativo ? 'ativado' : 'desativado'} com sucesso.`, 'sucesso');
   tenantAtual.modulos = resultado.modulos;
-  const historico = await carregarHistoricoModulos(idTenantAtual);
-  renderPagina(tenantAtual, historico);
+  historicoModulosAtual = await carregarHistoricoModulos(idTenantAtual);
+  renderAba();
 }
 
 function wireEventosModulos() {
@@ -675,6 +637,390 @@ function wireEventosModulos() {
       alterarModulo(checkbox.dataset.moduloKey, checkbox.checked, checkbox);
     });
   });
+}
+
+async function carregarHistoricoModulos(id) {
+  const resultado = await api(`/api/tenants/${encodeURIComponent(id)}/modulos/historico`).catch(() => null);
+  return (resultado && resultado.historico) || [];
+}
+
+function renderAbaGeral(t) {
+  return `
+    ${renderSecaoNegocio(t)}
+    ${renderSecaoResponsavel(t)}
+    ${renderSecaoStatus(t)}
+    ${renderSecaoCobranca(cacheAbas.cobranca)}
+    ${renderSecaoUsuarios(t.usuarios || [])}
+    ${renderSecaoAcessosTemporarios(t.acessos_temporarios || [])}
+    ${renderSecaoModulos(t)}
+    ${renderSecaoHistoricoModulos(historicoModulosAtual)}
+    ${renderSecaoAtividade(t)}
+  `;
+}
+
+async function carregarCobrancaSeNecessario() {
+  if (cacheAbas.cobranca) return;
+  cacheAbas.cobranca = await api(`/api/tenants/${encodeURIComponent(idTenantAtual)}/cobranca`).catch((erro) => ({ error: erro.message }));
+  // Só atualiza a tela se ainda estivermos na aba Geral (usuário pode ter
+  // trocado de aba enquanto a chamada pra Asaas estava em voo).
+  if (estado.aba === 'geral') renderAba();
+}
+
+// ============================================================
+// Aba WhatsApp
+// ============================================================
+
+// Modo do agente de atendimento por IA do CRM (bot da Basic 3D Print, ver
+// kyvvo-crm/docs/runbooks/onboarding-whatsapp-basic.md) — pedido do Bruno
+// (achado ao vivo, 2026-10-13: "bot não responde" era modo "rascunho", que
+// só sugere resposta pra equipe aprovar, não manda nada sozinho) pra ver e
+// trocar sem precisar logar como o tenant na tela Atendimento do CRM.
+// Só aparece quando o módulo 'crm' está ativo pro tenant.
+const MODO_AGENTE_LABEL = {
+  desligado: 'Desligado',
+  rascunho: 'Rascunho (sugestões — equipe aprova antes de enviar)',
+  automatico: 'Automático (responde sozinho)',
+};
+const MODO_AGENTE_CLASSE = {
+  desligado: 'badge-status-inativo',
+  rascunho: 'badge-status-nao-ativado',
+  automatico: 'badge-status-ativo',
+};
+
+function renderSecaoAgenteCrm(config) {
+  if (!config) return '';
+  if (config.error) {
+    return `
+      <section class="secao-detalhe">
+        <h3>Agente de atendimento (CRM)</h3>
+        <p class="vazio-inline">Falha ao consultar: ${escapeHtml(config.error)}</p>
+      </section>
+    `;
+  }
+  if (!config.configurado) {
+    return `
+      <section class="secao-detalhe">
+        <h3>Agente de atendimento (CRM)</h3>
+        <span class="vazio-inline">Agente ainda não configurado pra este tenant (ver runbook de onboarding).</span>
+      </section>
+    `;
+  }
+  const horario = config.horario_atendimento;
+  return `
+    <section class="secao-detalhe">
+      <h3>Agente de atendimento (CRM)</h3>
+      <p><strong>Modo atual:</strong> <span class="badge ${MODO_AGENTE_CLASSE[config.modo] || 'badge-status-inativo'}">${escapeHtml(MODO_AGENTE_LABEL[config.modo] || config.modo)}</span></p>
+      ${horario ? `<p><strong>Horário de atendimento:</strong> ${escapeHtml(horario.inicio)}–${escapeHtml(horario.fim)} (${escapeHtml(horario.fuso)})</p>` : ''}
+      <div class="ds-campo" style="max-width:320px">
+        <label class="ds-rotulo" for="select-modo-agente">Alterar modo</label>
+        <select class="ds-select" id="select-modo-agente">
+          ${Object.keys(MODO_AGENTE_LABEL).map((m) => `<option value="${m}" ${m === config.modo ? 'selected' : ''}>${escapeHtml(MODO_AGENTE_LABEL[m])}</option>`).join('')}
+        </select>
+      </div>
+      <div class="modal-acoes" style="justify-content:flex-start; margin-top:8px">
+        <button type="button" class="btn-secundario" id="btn-salvar-modo-agente">Salvar</button>
+      </div>
+    </section>
+  `;
+}
+
+async function salvarModoAgente() {
+  const select = document.getElementById('select-modo-agente');
+  const btn = document.getElementById('btn-salvar-modo-agente');
+  if (!select || !btn) return;
+  const modo = select.value;
+  btn.disabled = true;
+  const textoOriginal = btn.textContent;
+  btn.textContent = 'Salvando...';
+  const resultado = await api(`/api/whatsapp/crm-agente-config/${encodeURIComponent(idTenantAtual)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ modo }),
+  });
+  btn.disabled = false;
+  btn.textContent = textoOriginal;
+  if (!resultado) return;
+  if (resultado.error) {
+    mostrarToast(resultado.error, 'erro');
+    return;
+  }
+  mostrarToast('Modo do agente atualizado.');
+  crmAgenteAtual = { ...crmAgenteAtual, modo: resultado.modo };
+  renderAba();
+}
+
+function wireEventosAgenteCrm() {
+  const btn = document.getElementById('btn-salvar-modo-agente');
+  if (btn) btn.addEventListener('click', salvarModoAgente);
+}
+
+// CA (US39.1) — pedido de "Novo número" ainda não atendido: o tenant já
+// confirmou que quer um número fornecido pela Kyvvo (POST
+// /api/whatsapp/solicitar-numero-novo) e ainda não tem meta_phone_number_id
+// (i.e., nenhum número foi vinculado ainda via /whatsapp.html — ver
+// migration 037/US39.2). Só aparece enquanto o pedido está pendente.
+function renderSecaoNumeroNovo(t) {
+  if (!t.novo_numero_solicitado_em || t.meta_phone_number_id) return '';
+  return `
+    <section class="secao-detalhe">
+      <h3>Pedido de número novo</h3>
+      <p><strong>Solicitado em:</strong> ${formatarDataHora(t.novo_numero_solicitado_em)}</p>
+      <p><strong>DDD de preferência:</strong> ${t.novo_numero_ddd_preferencia ? escapeHtml(t.novo_numero_ddd_preferencia) : 'Sem preferência'}</p>
+      <p class="vazio-inline">Vincule um número em <a class="topbar-nav-link" href="/whatsapp.html">Admin → WhatsApp → Números prontos</a> quando houver um disponível.</p>
+    </section>
+  `;
+}
+
+function renderAbaWhatsapp(t) {
+  return `
+    <section class="secao-detalhe">
+      <h3>Número conectado</h3>
+      <p><strong>Status:</strong> ${
+        t.whatsapp_conectado
+          ? '<span class="badge badge-status-ativo">Conectado</span>'
+          : '<span class="badge badge-status-inativo">Não conectado</span>'
+      }</p>
+      <p><strong>Número:</strong> ${t.whatsapp_numero ? formatarWhatsapp(t.whatsapp_numero) : '—'}</p>
+    </section>
+    ${renderSecaoNumeroNovo(t)}
+    ${renderSecaoAgenteCrm(crmAgenteAtual)}
+  `;
+}
+
+// ============================================================
+// Aba Disparo (sob demanda) — reusa GET /api/whatsapp/disparos (total/
+// realizados/limite do plano) e GET /api/whatsapp/templates (status de
+// aprovação na Meta), filtrando por este tenant.
+// ============================================================
+
+const STATUS_TEMPLATE_LABEL = { APPROVED: 'Aprovados', PENDING: 'Pendentes', REJECTED: 'Reprovados' };
+
+function renderListaTemplates(titulo, templates) {
+  return `
+    <div>
+      <h4 style="margin-top:16px">${escapeHtml(titulo)} (${templates.length})</h4>
+      ${
+        templates.length
+          ? `<ul class="lista-simples">${templates.map((t) => `
+              <li>${escapeHtml(t.nome)} <span class="vazio-inline">(${escapeHtml(t.idioma || '—')})</span>${t.motivoRejeicao ? ` — <span class="vazio-inline">${escapeHtml(t.motivoRejeicao)}</span>` : ''}</li>
+            `).join('')}</ul>`
+          : '<span class="vazio-inline">Nenhum</span>'
+      }
+    </div>
+  `;
+}
+
+function renderAbaDisparo(dados) {
+  if (!dados) return '<div class="vazio">Carregando...</div>';
+  if (dados.error) return `<p class="vazio-inline">Falha ao consultar: ${escapeHtml(dados.error)}</p>`;
+  const { total, realizados, limitePlano, templates } = dados;
+  const restante = limitePlano && limitePlano.limite != null ? Math.max(limitePlano.limite - limitePlano.usadoMesAtual, 0) : null;
+  const porStatus = { APPROVED: [], PENDING: [], REJECTED: [] };
+  (templates || []).forEach((t) => {
+    if (porStatus[t.status]) porStatus[t.status].push(t);
+  });
+  return `
+    <section class="secao-detalhe">
+      <h3>Disparos</h3>
+      <p><strong>Total de disparos:</strong> ${total}</p>
+      <p><strong>Realizados (enviados):</strong> ${realizados}</p>
+      ${
+        limitePlano
+          ? `
+        <p><strong>Plano:</strong> ${escapeHtml(limitePlano.planoNome)}</p>
+        <p><strong>Usado no mês:</strong> ${limitePlano.usadoMesAtual}${limitePlano.limite != null ? ` de ${limitePlano.limite}` : ' (sem limite)'}</p>
+        ${restante != null ? `<p><strong>Restante no mês:</strong> ${restante}</p>` : ''}
+      `
+          : '<p class="vazio-inline">Sem plano com limite de disparos configurado.</p>'
+      }
+    </section>
+    <section class="secao-detalhe">
+      <h3>Modelos de mensagem</h3>
+      ${Object.entries(STATUS_TEMPLATE_LABEL).map(([chave, titulo]) => renderListaTemplates(titulo, porStatus[chave])).join('')}
+    </section>
+  `;
+}
+
+async function carregarDisparo() {
+  const [disparos, templatesResp] = await Promise.all([
+    api(`/api/whatsapp/disparos?tenant_id=${encodeURIComponent(idTenantAtual)}`),
+    api('/api/whatsapp/templates'),
+  ]);
+  if (!disparos) return { error: 'Falha ao consultar disparos.' };
+  const templates = ((templatesResp && templatesResp.templates) || []).filter((t) => t.tenantId === idTenantAtual);
+  return { ...disparos, templates };
+}
+
+// ============================================================
+// Aba Consumo (sob demanda) — custo de IA geral e do mês atual.
+// ============================================================
+
+function renderAbaConsumo(dados) {
+  if (!dados) return '<div class="vazio">Carregando...</div>';
+  if (dados.error) return `<p class="vazio-inline">Falha ao consultar: ${escapeHtml(dados.error)}</p>`;
+  return `
+    <section class="secao-detalhe">
+      <h3>Uso da IA — geral</h3>
+      <p><strong>Total de mensagens:</strong> ${dados.mensagens}</p>
+      <p><strong>Total de conversas:</strong> ${dados.conversas}</p>
+      <p><strong>Última conversa:</strong> ${dados.ultimaConversaEm ? formatarDataHora(dados.ultimaConversaEm) : '—'}</p>
+      <p><strong>Custo total (estimado):</strong> ${formatarPreco(dados.custoReaisGeral)}</p>
+    </section>
+    <section class="secao-detalhe">
+      <h3>Uso da IA — mês atual</h3>
+      <p><strong>Mensagens no mês:</strong> ${dados.mensagensMes}</p>
+      <p><strong>Custo no mês (estimado):</strong> ${formatarPreco(dados.custoReaisMes)}</p>
+    </section>
+  `;
+}
+
+// ============================================================
+// Aba E-mail (sob demanda) — histórico de envios do platform, filtrado
+// pelos e-mails dos usuários deste tenant (email_envios não tem tenant_id,
+// ver comentário em routes/admin-email.js).
+// ============================================================
+
+const STATUS_EMAIL_LABEL = {
+  enviado: 'Enviado', entregue: 'Entregue', bounce: 'Bounce', reclamacao: 'Reclamação',
+  rejeitado: 'Rejeitado', falhou: 'Falhou', suprimido: 'Suprimido', log: 'Log (modo dev)',
+};
+const STATUS_EMAIL_ERRO = ['bounce', 'reclamacao', 'rejeitado', 'falhou'];
+
+function somarStatus(porStatus, chaves) {
+  return chaves.reduce((soma, c) => soma + (porStatus[c] || 0), 0);
+}
+
+function renderLinhaEmail(e) {
+  return `
+    <tr>
+      <td>${celulaTruncada(e.destinatario)}</td>
+      <td>${escapeHtml(STATUS_EMAIL_LABEL[e.status] || e.status)}</td>
+      <td>${formatarDataHora(e.criado_em)}</td>
+      <td>${e.erro ? celulaTruncada(e.erro, 40) : '—'}</td>
+    </tr>
+  `;
+}
+
+function renderCardsEmail(titulo, porStatus, total) {
+  return `
+    <div class="secao-detalhe" style="flex:1">
+      <h4>${escapeHtml(titulo)}</h4>
+      <p><strong>Enviados:</strong> ${total}</p>
+      <p><strong>Entregues:</strong> ${porStatus.entregue || 0}</p>
+      <p><strong>Erros:</strong> ${somarStatus(porStatus, STATUS_EMAIL_ERRO)}</p>
+    </div>
+  `;
+}
+
+function renderAbaEmail(dados) {
+  if (!dados) return '<div class="vazio">Carregando...</div>';
+  if (dados.error) return `<p class="vazio-inline">Falha ao consultar: ${escapeHtml(dados.error)}</p>`;
+  const envios = dados.envios || [];
+  return `
+    <div style="display:flex; gap:16px; flex-wrap:wrap">
+      ${renderCardsEmail('Geral (todo o histórico)', dados.porStatus || {}, dados.total || 0)}
+      ${renderCardsEmail('Mês atual', dados.porStatusMes || {}, dados.totalMes || 0)}
+    </div>
+    <section class="secao-detalhe">
+      <h3>Histórico de envios</h3>
+      ${
+        envios.length
+          ? `
+        <div class="tabela-wrapper">
+          <table class="tabela-tenants">
+            <thead><tr><th>Destinatário</th><th>Status</th><th>Data de envio</th><th>Observação</th></tr></thead>
+            <tbody>${envios.map(renderLinhaEmail).join('')}</tbody>
+          </table>
+        </div>
+      `
+          : '<span class="vazio-inline">Nenhum e-mail enviado ainda.</span>'
+      }
+    </section>
+  `;
+}
+
+// ============================================================
+// Abas — navegação e estado
+// ============================================================
+
+const ABAS = [
+  { id: 'geral', label: 'Geral' },
+  { id: 'whatsapp', label: 'WhatsApp' },
+  { id: 'disparo', label: 'Disparo' },
+  { id: 'consumo', label: 'Consumo' },
+  { id: 'email', label: 'E-mail' },
+];
+
+let estado = { aba: 'geral' };
+let cacheAbas = {};
+
+// Estado da tela mantido em memória pra poder re-renderizar só a aba atual
+// depois de uma ação (toggle de módulo, trocar modo do agente etc.), sem
+// refazer o GET completo do tenant.
+let tenantAtual = null;
+let idTenantAtual = null;
+let crmAgenteAtual = null;
+let historicoModulosAtual = [];
+
+function renderPagina() {
+  conteudo.innerHTML = `
+    <a class="topbar-nav-link" href="/painel.html">← Voltar para lista</a>
+    <h2 class="titulo-detalhe">${escapeHtml(tenantAtual.nome)}</h2>
+    <div class="ds-abas-lista">
+      ${ABAS.map((a) => `<button type="button" class="ds-aba" aria-selected="${estado.aba === a.id ? 'true' : 'false'}" data-aba="${a.id}">${a.label}</button>`).join('')}
+    </div>
+    <div id="conteudo-aba"></div>
+  `;
+  conteudo.querySelectorAll('[data-aba]').forEach((el) => {
+    el.addEventListener('click', () => { estado.aba = el.dataset.aba; renderPagina(); });
+  });
+  renderAba();
+}
+
+async function renderAba() {
+  const alvo = document.getElementById('conteudo-aba');
+  if (!alvo) return;
+
+  if (estado.aba === 'geral') {
+    alvo.innerHTML = renderAbaGeral(tenantAtual);
+    wireEventosModulos();
+    wireEventosUsuarios();
+    wireEventosAcessosTemporarios();
+    carregarCobrancaSeNecessario();
+    return;
+  }
+
+  if (estado.aba === 'whatsapp') {
+    alvo.innerHTML = renderAbaWhatsapp(tenantAtual);
+    wireEventosAgenteCrm();
+    return;
+  }
+
+  if (estado.aba === 'disparo') {
+    alvo.innerHTML = renderAbaDisparo(cacheAbas.disparo);
+    if (!cacheAbas.disparo) {
+      cacheAbas.disparo = await carregarDisparo();
+      if (estado.aba === 'disparo') alvo.innerHTML = renderAbaDisparo(cacheAbas.disparo);
+    }
+    return;
+  }
+
+  if (estado.aba === 'consumo') {
+    alvo.innerHTML = renderAbaConsumo(cacheAbas.consumo);
+    if (!cacheAbas.consumo) {
+      cacheAbas.consumo = await api(`/api/tenants/${encodeURIComponent(idTenantAtual)}/ia-uso`).catch((erro) => ({ error: erro.message }));
+      if (estado.aba === 'consumo') alvo.innerHTML = renderAbaConsumo(cacheAbas.consumo);
+    }
+    return;
+  }
+
+  if (estado.aba === 'email') {
+    alvo.innerHTML = renderAbaEmail(cacheAbas.email);
+    if (!cacheAbas.email) {
+      cacheAbas.email = await api(`/api/email/envios?tenant_id=${encodeURIComponent(idTenantAtual)}`).catch((erro) => ({ error: erro.message }));
+      if (estado.aba === 'email') alvo.innerHTML = renderAbaEmail(cacheAbas.email);
+    }
+    return;
+  }
 }
 
 async function renderDetalhe() {
@@ -697,9 +1043,10 @@ async function renderDetalhe() {
   }
 
   tenantAtual = data;
+  historicoModulosAtual = historico;
   const crmAtivo = (data.modulos_ativos || []).some((m) => m.key === 'crm');
   crmAgenteAtual = crmAtivo ? await api(`/api/whatsapp/crm-agente-config/${encodeURIComponent(id)}`) : null;
-  renderPagina(data, historico);
+  renderPagina();
 }
 
 renderDetalhe();

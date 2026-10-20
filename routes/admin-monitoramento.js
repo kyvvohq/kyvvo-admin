@@ -3,6 +3,8 @@
 // GET /api/whatsapp/status (checava 1 META_PHONE_NUMBER_ID fixo) saiu daqui
 // — virou GET /api/whatsapp/wabas em admin-whatsapp-meta.js, que cobre
 // todo número de toda WABA que a Kyvvo gerencia, não só um fixo.
+const { calcularCustoReaisIA } = require('../lib/ia-custo');
+
 function registerAdminMonitoramentoRoutes(fastify, pool) {
   // Dashboard de consumo da IA (US68) — volume de mensagens/conversas por
   // tenant/dia e custo real em R$, calculado a partir dos tokens capturados
@@ -10,17 +12,6 @@ function registerAdminMonitoramentoRoutes(fastify, pool) {
   // tokens_entrada/tokens_saida — são as únicas que chamam a Anthropic API).
   // Mensagens salvas antes da migration 053 ficam com tokens null: entram no
   // volume mas não somam custo.
-  const IA_PRECO_USD_ENTRADA_POR_MILHAO = 1.0; // Claude Haiku 4.5
-  const IA_PRECO_USD_SAIDA_POR_MILHAO = 5.0;
-  // Cotação fixa aproximada (não é uma cotação ao vivo) — ajustar aqui de
-  // tempos em tempos se o real variar muito contra o dólar.
-  const IA_USD_PARA_BRL = 5.3;
-
-  function calcularCustoReaisIA(tokensEntrada, tokensSaida) {
-    const usd = (tokensEntrada / 1e6) * IA_PRECO_USD_ENTRADA_POR_MILHAO
-      + (tokensSaida / 1e6) * IA_PRECO_USD_SAIDA_POR_MILHAO;
-    return Number((usd * IA_USD_PARA_BRL).toFixed(2));
-  }
 
   fastify.get('/api/ia-uso', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
     const dias = Math.min(Math.max(parseInt(request.query.dias, 10) || 30, 1), 90);
@@ -94,6 +85,38 @@ function registerAdminMonitoramentoRoutes(fastify, pool) {
           : 0,
       })),
       porIntent: porIntent.map((r) => ({ intent: r.intent, quantidade: Number(r.quantidade) })),
+    };
+  });
+
+  // Aba Consumo do detalhe do tenant (pedido do Bruno, 2026-10-20) — custo de
+  // IA GERAL (todo o histórico) e do MÊS atual pra um tenant específico,
+  // diferente de GET /api/ia-uso acima (que é um dashboard cross-tenant
+  // limitado a uma janela de `dias`). Mesma lib de preço (ia-custo.js), sem
+  // duplicar a cotação/tabela de preço por tokens.
+  fastify.get('/api/tenants/:id/ia-uso', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
+    const { id } = request.params;
+    const { rows } = await pool.query(
+      `SELECT
+         count(*) FILTER (WHERE role = 'assistant') AS mensagens,
+         count(DISTINCT cliente_id) AS conversas,
+         coalesce(sum(tokens_entrada), 0) AS tokens_entrada,
+         coalesce(sum(tokens_saida), 0) AS tokens_saida,
+         max(criado_em) AS ultima_conversa_em,
+         count(*) FILTER (WHERE role = 'assistant' AND criado_em >= date_trunc('month', now())) AS mensagens_mes,
+         coalesce(sum(tokens_entrada) FILTER (WHERE criado_em >= date_trunc('month', now())), 0) AS tokens_entrada_mes,
+         coalesce(sum(tokens_saida) FILTER (WHERE criado_em >= date_trunc('month', now())), 0) AS tokens_saida_mes
+       FROM conversas_ia
+       WHERE tenant_id = $1`,
+      [id]
+    );
+    const r = rows[0];
+    return {
+      mensagens: Number(r.mensagens),
+      conversas: Number(r.conversas),
+      ultimaConversaEm: r.ultima_conversa_em,
+      custoReaisGeral: calcularCustoReaisIA(Number(r.tokens_entrada), Number(r.tokens_saida)),
+      mensagensMes: Number(r.mensagens_mes),
+      custoReaisMes: calcularCustoReaisIA(Number(r.tokens_entrada_mes), Number(r.tokens_saida_mes)),
     };
   });
 }

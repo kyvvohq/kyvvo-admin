@@ -187,8 +187,15 @@ function registerAdminEmailRoutes(fastify, pool) {
   });
 
   // --- Envios (histórico) ---------------------------------------------------
+  // `tenant_id` (aba E-mail do detalhe do tenant, pedido do Bruno,
+  // 2026-10-20) — platform.email_envios não tem tenant_id (é só um log de
+  // destinatário/assunto, ver db/010_email.sql do platform), então filtra
+  // por quem é dono do e-mail: os usuários daquele tenant. Com tenant_id
+  // informado, também devolve `porStatusMes`/`totalMes` (mês corrente) junto
+  // de `porStatus`/`total` (todo o histórico) — os cards "geral" x "mês
+  // atual" do topo da aba.
   fastify.get('/api/email/envios', auth, async (request, reply) => {
-    const { produto, status, q } = request.query || {};
+    const { produto, status, q, tenant_id: tenantId } = request.query || {};
     const where = [];
     const params = [];
     if (produto) { params.push(produto); where.push(`produto = $${params.length}`); }
@@ -197,17 +204,36 @@ function registerAdminEmailRoutes(fastify, pool) {
       params.push(status); where.push(`status = $${params.length}`);
     }
     if (q && String(q).trim()) { params.push(`%${String(q).trim().toLowerCase()}%`); where.push(`(lower(destinatario) LIKE $${params.length} OR lower(assunto) LIKE $${params.length})`); }
+    if (tenantId) {
+      params.push(tenantId);
+      where.push(`lower(destinatario) IN (SELECT lower(email) FROM usuarios WHERE tenant_id = $${params.length})`);
+    }
     const filtro = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const [lista, totais] = await Promise.all([
+    const [lista, totais, totaisMes] = await Promise.all([
       pool.query(
         `SELECT id, produto, tag, destinatario, assunto, provedor, status, erro, criado_em, atualizado_em
            FROM platform.email_envios ${filtro} ORDER BY criado_em DESC LIMIT 200`, params),
       pool.query(`SELECT status, count(*)::int AS n FROM platform.email_envios ${filtro} GROUP BY status`, params),
+      // `filtro` nunca vem vazio aqui: a própria condição de tenant_id acima
+      // já garante um WHERE.
+      tenantId
+        ? pool.query(
+            `SELECT status, count(*)::int AS n FROM platform.email_envios
+               ${filtro} AND criado_em >= date_trunc('month', now())
+             GROUP BY status`,
+            params,
+          )
+        : Promise.resolve({ rows: [] }),
     ]);
     const porStatus = {};
     let total = 0;
     for (const r of totais.rows) { porStatus[r.status] = r.n; total += r.n; }
-    return { envios: lista.rows, total, porStatus };
+    const porStatusMes = {};
+    let totalMes = 0;
+    for (const r of totaisMes.rows) { porStatusMes[r.status] = r.n; totalMes += r.n; }
+    return tenantId
+      ? { envios: lista.rows, total, porStatus, totalMes, porStatusMes }
+      : { envios: lista.rows, total, porStatus };
   });
 
   // --- Lista de bloqueio ----------------------------------------------------
