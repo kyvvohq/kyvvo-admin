@@ -770,10 +770,22 @@ function renderSecaoNumeroNovo(t) {
   `;
 }
 
-function renderAbaWhatsapp(t) {
+// Status do número do agente de IA do CRM (crm_whatsapp_numeros.status) —
+// não confundir com o `whatsapp_conectado` do Studio (meta_phone_number_id),
+// são conexões independentes, cada produto com a sua.
+const STATUS_NUMERO_CRM_LABEL = { ativo: 'Conectado', pausado: 'Pausado', desconectado: 'Desconectado' };
+const STATUS_NUMERO_CRM_CLASSE = { ativo: 'badge-status-ativo', pausado: 'badge-status-nao-ativado', desconectado: 'badge-status-inativo' };
+
+// Achado ao vivo (2026-10-20, Bruno): o número mostrado aqui não pode ser o
+// telefone de CADASTRO do tenant — é o número que a Kyvvo forneceu pro
+// agente de IA. Cada produto resolve/mostra o seu: Studio via
+// meta_phone_number_id (já vem no payload principal do tenant, sem
+// fallback pro telefone de cadastro — ver GET /api/tenants/:id), CRM via
+// crm_whatsapp_numeros (isolado no banco do CRM, resolvido à parte aqui).
+function renderSecaoNumeroStudio(t) {
   return `
     <section class="secao-detalhe">
-      <h3>Número conectado</h3>
+      <h3>Número conectado (Studio)</h3>
       <p><strong>Status:</strong> ${
         t.whatsapp_conectado
           ? '<span class="badge badge-status-ativo">Conectado</span>'
@@ -781,6 +793,38 @@ function renderAbaWhatsapp(t) {
       }</p>
       <p><strong>Número:</strong> ${t.whatsapp_numero ? formatarWhatsapp(t.whatsapp_numero) : '—'}</p>
     </section>
+  `;
+}
+
+function renderSecaoNumeroCrm(crmNumeros) {
+  if (!crmNumeros) return '<section class="secao-detalhe"><h3>Número conectado (CRM)</h3><div class="vazio">Carregando...</div></section>';
+  if (crmNumeros.error) {
+    return `<section class="secao-detalhe"><h3>Número conectado (CRM)</h3><p class="vazio-inline">Falha ao consultar: ${escapeHtml(crmNumeros.error)}</p></section>`;
+  }
+  const numero = (crmNumeros.numeros || []).find((n) => n.tenant_id === idTenantAtual);
+  if (!numero) {
+    return `
+      <section class="secao-detalhe">
+        <h3>Número conectado (CRM)</h3>
+        <p><strong>Status:</strong> <span class="badge badge-status-inativo">Não conectado</span></p>
+        <p class="vazio-inline">Nenhum número vinculado em <a class="topbar-nav-link" href="/whatsapp-wabas.html">Admin → WhatsApp → WABAs</a> (seção "Kyvvo CRM — WhatsApp por cliente").</p>
+      </section>
+    `;
+  }
+  return `
+    <section class="secao-detalhe">
+      <h3>Número conectado (CRM)</h3>
+      <p><strong>Status:</strong> <span class="badge ${STATUS_NUMERO_CRM_CLASSE[numero.status] || 'badge-status-inativo'}">${escapeHtml(STATUS_NUMERO_CRM_LABEL[numero.status] || numero.status || '—')}</span></p>
+      <p><strong>Número:</strong> ${numero.numero_exibido ? escapeHtml(numero.numero_exibido) : '—'}</p>
+      <p><strong>Modo:</strong> ${numero.modo === 'coexistencia' ? 'Coexistência (WhatsApp Business app)' : 'API (só Cloud API)'}</p>
+    </section>
+  `;
+}
+
+function renderAbaWhatsapp(t, crmAtivo, crmNumeros) {
+  return `
+    ${renderSecaoNumeroStudio(t)}
+    ${crmAtivo ? renderSecaoNumeroCrm(crmNumeros) : ''}
     ${renderSecaoNumeroNovo(t)}
     ${renderSecaoAgenteCrm(crmAgenteAtual)}
   `;
@@ -854,22 +898,64 @@ async function carregarDisparo() {
 // Aba Consumo (sob demanda) — custo de IA geral e do mês atual.
 // ============================================================
 
-function renderAbaConsumo(dados) {
-  if (!dados) return '<div class="vazio">Carregando...</div>';
-  if (dados.error) return `<p class="vazio-inline">Falha ao consultar: ${escapeHtml(dados.error)}</p>`;
+// Studio e CRM têm agente de IA PRÓPRIO, em banco separado (conversas_ia no
+// Studio x crm_agente_execucoes isolado no CRM — ver comentário da rota
+// /api/tenants/:id/ia-uso) — por isso as duas seções abaixo convivem,
+// cada uma só aparece quando o produto correspondente está em uso.
+function renderSecaoConsumoStudio(dados) {
+  if (!dados) return '<section class="secao-detalhe"><h3>Uso da IA — Studio</h3><div class="vazio">Carregando...</div></section>';
+  if (dados.error) return `<section class="secao-detalhe"><h3>Uso da IA — Studio</h3><p class="vazio-inline">Falha ao consultar: ${escapeHtml(dados.error)}</p></section>`;
   return `
     <section class="secao-detalhe">
-      <h3>Uso da IA — geral</h3>
+      <h3>Uso da IA — Studio (geral)</h3>
       <p><strong>Total de mensagens:</strong> ${dados.mensagens}</p>
       <p><strong>Total de conversas:</strong> ${dados.conversas}</p>
       <p><strong>Última conversa:</strong> ${dados.ultimaConversaEm ? formatarDataHora(dados.ultimaConversaEm) : '—'}</p>
       <p><strong>Custo total (estimado):</strong> ${formatarPreco(dados.custoReaisGeral)}</p>
     </section>
     <section class="secao-detalhe">
-      <h3>Uso da IA — mês atual</h3>
+      <h3>Uso da IA — Studio (mês atual)</h3>
       <p><strong>Mensagens no mês:</strong> ${dados.mensagensMes}</p>
       <p><strong>Custo no mês (estimado):</strong> ${formatarPreco(dados.custoReaisMes)}</p>
     </section>
+  `;
+}
+
+// Achado ao vivo (2026-10-20, Bruno): o consumo de IA de um tenant do CRM
+// (ex. Basic 3D Print) não aparecia aqui — a query de Studio olha
+// conversas_ia, que não tem nada pra tenant de CRM (o agente dele roda em
+// crm_agente_execucoes, isolado no banco do CRM). Mostra os MESMOS
+// indicadores que o próprio tenant vê em Atendimento > Indicadores
+// (últimos 7 dias) — mesma rota de cálculo, só sem exigir o JWT do tenant
+// (GET /crm/admin-interno/agente/metricas/:tenantId). Custo em USD mesmo
+// (não converte pra BRL): é o valor que a Anthropic cobra de verdade,
+// específico do modelo configurado pro tenant — converter aqui reintroduz
+// o mesmo risco de "preço fixo errado" que o Studio já tem documentado em
+// lib/ia-custo.js, só que pior (lá é só 1 modelo, aqui o CRM pode trocar).
+function renderSecaoConsumoCrm(dados) {
+  if (!dados) return '<section class="secao-detalhe"><h3>Uso da IA — CRM (últimos 7 dias)</h3><div class="vazio">Carregando...</div></section>';
+  if (dados.error) return `<section class="secao-detalhe"><h3>Uso da IA — CRM (últimos 7 dias)</h3><p class="vazio-inline">Falha ao consultar: ${escapeHtml(dados.error)}</p></section>`;
+  const c = dados.custo || {};
+  const ex = dados.execucoes || {};
+  const ah = dados.atendimento_humano || {};
+  return `
+    <section class="secao-detalhe">
+      <h3>Uso da IA — CRM (últimos 7 dias)</h3>
+      <p class="vazio-inline" style="margin-bottom:8px">Mesmos números que a cliente vê em Atendimento → Indicadores, no CRM dela.</p>
+      <p><strong>Custo de IA (estimado):</strong> ${c.ia_usd != null ? `US$ ${c.ia_usd.toFixed(4)}` : 'Sem preço cadastrado pro modelo'}</p>
+      <p><strong>Mensagens enviadas:</strong> ${c.mensagens_enviadas ?? 0}</p>
+      <p><strong>Execuções do agente:</strong> ${ex.total ?? 0} (${ex.conversas ?? 0} conversas)</p>
+      <p><strong>Bloqueadas pelo filtro:</strong> ${ex.bloqueadas_pelo_filtro ?? 0} (${ex.taxa_bloqueio != null ? Math.round(ex.taxa_bloqueio * 100) : 0}%)</p>
+      <p><strong>Encaminhamentos abertos agora:</strong> ${(dados.fila && dados.fila.abertos) ?? 0}</p>
+      <p><strong>Tempo até 1º atendimento humano (mediana):</strong> ${ah.mediana_min != null ? `${ah.mediana_min} min` : '—'}</p>
+    </section>
+  `;
+}
+
+function renderAbaConsumo(dadosStudio, crmAtivo, dadosCrm) {
+  return `
+    ${renderSecaoConsumoStudio(dadosStudio)}
+    ${crmAtivo ? renderSecaoConsumoCrm(dadosCrm) : ''}
   `;
 }
 
@@ -991,8 +1077,16 @@ async function renderAba() {
   }
 
   if (estado.aba === 'whatsapp') {
-    alvo.innerHTML = renderAbaWhatsapp(tenantAtual);
+    const crmAtivo = (tenantAtual.modulos_ativos || []).some((m) => m.key === 'crm');
+    alvo.innerHTML = renderAbaWhatsapp(tenantAtual, crmAtivo, cacheAbas.crmNumeros);
     wireEventosAgenteCrm();
+    if (crmAtivo && !cacheAbas.crmNumeros) {
+      cacheAbas.crmNumeros = await api('/api/whatsapp/crm-numeros').catch((erro) => ({ error: erro.message }));
+      if (estado.aba === 'whatsapp') {
+        alvo.innerHTML = renderAbaWhatsapp(tenantAtual, crmAtivo, cacheAbas.crmNumeros);
+        wireEventosAgenteCrm();
+      }
+    }
     return;
   }
 
@@ -1006,10 +1100,26 @@ async function renderAba() {
   }
 
   if (estado.aba === 'consumo') {
-    alvo.innerHTML = renderAbaConsumo(cacheAbas.consumo);
+    const crmAtivo = (tenantAtual.modulos_ativos || []).some((m) => m.key === 'crm');
+    alvo.innerHTML = renderAbaConsumo(cacheAbas.consumo, crmAtivo, cacheAbas.consumoCrm);
+    const faltam = [];
     if (!cacheAbas.consumo) {
-      cacheAbas.consumo = await api(`/api/tenants/${encodeURIComponent(idTenantAtual)}/ia-uso`).catch((erro) => ({ error: erro.message }));
-      if (estado.aba === 'consumo') alvo.innerHTML = renderAbaConsumo(cacheAbas.consumo);
+      faltam.push(
+        api(`/api/tenants/${encodeURIComponent(idTenantAtual)}/ia-uso`)
+          .catch((erro) => ({ error: erro.message }))
+          .then((r) => { cacheAbas.consumo = r; })
+      );
+    }
+    if (crmAtivo && !cacheAbas.consumoCrm) {
+      faltam.push(
+        api(`/api/whatsapp/crm-agente-metricas/${encodeURIComponent(idTenantAtual)}?dias=7`)
+          .catch((erro) => ({ error: erro.message }))
+          .then((r) => { cacheAbas.consumoCrm = r; })
+      );
+    }
+    if (faltam.length) {
+      await Promise.all(faltam);
+      if (estado.aba === 'consumo') alvo.innerHTML = renderAbaConsumo(cacheAbas.consumo, crmAtivo, cacheAbas.consumoCrm);
     }
     return;
   }

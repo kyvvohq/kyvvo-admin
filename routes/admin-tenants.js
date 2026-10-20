@@ -257,16 +257,16 @@ function registerAdminTenantsRoutes(fastify, pool) {
       [id]
     );
 
-    // Número conectado: número vinculado via "números prontos" (US39.2) tem
-    // prioridade porque é o dado mais recente/confiável; self-service
-    // (Embedded Signup) não passa por `numeros_prontos`, só grava
-    // meta_phone_number_id direto em tenants — nesse caso cai no fallback de
-    // `tenant.telefone` (cadastrado no onboarding). Antes só vivia no painel
-    // lateral "Ver detalhes" (GET .../assinatura-resumo); com o clique na
-    // linha indo direto pra esta página (2026-10-13), juntou aqui — o custo
-    // é só mais uma query local, sem round-trip externo (diferente do resto
-    // daquela rota, que chamava a Asaas de verdade e por isso não entrou
-    // aqui: billing detalhado continua só em "Gerenciar assinatura").
+    // Número conectado (Studio): número vinculado via "números prontos"
+    // (US39.2) — o número que a Kyvvo forneceu pro agente de IA, nunca o
+    // telefone de cadastro do tenant. Achado ao vivo (2026-10-20, Bruno):
+    // a versão anterior caía num fallback pra `tenant.telefone` quando não
+    // achava a linha em `numeros_prontos` — mostrava o contato de cadastro
+    // como se fosse o número do WhatsApp conectado, errado pra qualquer
+    // tenant sem esse vínculo (ex.: tenant do CRM, que nem usa
+    // meta_phone_number_id — o número dele vive isolado em
+    // crm_whatsapp_numeros, resolvido à parte por quem chama esta rota).
+    // Sem o fallback: sem vínculo real, não mostra número nenhum.
     const { rows: numeroRows } = tenant.meta_phone_number_id
       ? await pool.query('SELECT telefone FROM numeros_prontos WHERE meta_phone_number_id = $1 LIMIT 1', [tenant.meta_phone_number_id])
       : { rows: [] };
@@ -292,7 +292,7 @@ function registerAdminTenantsRoutes(fastify, pool) {
       usuarios,
       contagens: contagemRows[0],
       whatsapp_conectado: Boolean(tenant.meta_phone_number_id),
-      whatsapp_numero: (numeroRows[0] && numeroRows[0].telefone) || tenant.telefone || null,
+      whatsapp_numero: (numeroRows[0] && numeroRows[0].telefone) || null,
       acessos_temporarios: acessosTemporarios,
     };
   });
