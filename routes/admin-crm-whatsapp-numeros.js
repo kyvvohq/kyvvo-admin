@@ -109,6 +109,21 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
     }
   });
 
+  // Indicadores do agente (aba Consumo do detalhe do tenant, pedido do
+  // Bruno 2026-10-20: "o consumo de IA no portal admin não bate com o que a
+  // Basic vê em Atendimento > Indicadores") — mesmo cálculo que o CRM
+  // mostra pro próprio tenant (custo real de IA via crm_agente_execucoes,
+  // não a tabela conversas_ia do Studio, que não tem nada pra tenant CRM).
+  fastify.get('/api/whatsapp/crm-agente-metricas/:tenantId', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
+    try {
+      const dias = request.query.dias ? `?dias=${encodeURIComponent(request.query.dias)}` : '';
+      return await chamarCrmInterno(`/crm/admin-interno/agente/metricas/${encodeURIComponent(request.params.tenantId)}${dias}`);
+    } catch (erro) {
+      fastify.log.error(`[crm-agente-metricas] ${erro.message}`);
+      return { error: erro.message };
+    }
+  });
+
   // Diagnóstico consolidado (kyvvo-crm#143): canal + últimas mensagens/
   // conversas/execuções do agente, pra debugar "bot não responde" sem SQL
   // manual no banco.
