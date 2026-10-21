@@ -125,6 +125,14 @@ const NAV_TREE = [
       // relacionado ao produto ser separado".
       { label: 'Versões / Changelog', href: '/versao.html' },
       { label: 'Swagger', href: '/docs', externo: true },
+      // Documentação técnica interna (pedido do Bruno, 2026-10-20) — imagem
+      // estática (não lib de diagrama em runtime, mesmo padrão "tudo
+      // self-hosted" do resto do admin) e os modelos de banco (MER/DER) em
+      // abas, mesmo padrão visual de produto-config.js/tenant-detalhe.js.
+      // Vive dentro de Sistema (não é grupo próprio): pedido do Bruno,
+      // 2026-10-20.
+      { label: 'Arquitetura', href: '/documentacao-arquitetura.html' },
+      { label: 'Banco', href: '/documentacao-banco.html' },
     ],
   },
 ];
