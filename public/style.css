@@ -1959,6 +1959,42 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .lista-simples li { margin-top: 4px; }
 
+/* Documentação > Arquitetura — visualizador de zoom/pan da imagem estática
+   (SVG pré-renderizado, ver documentacao-arquitetura.js). Fundo claro fixo
+   (não segue --card) porque o SVG embutido tem cores fixas pensadas pra
+   fundo claro — misturar com o tema escuro do admin ficaria ilegível. */
+.visualizador-diagrama {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.visualizador-barra {
+  display: flex;
+  gap: 6px;
+  padding: 8px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+.visualizador-area {
+  position: relative;
+  height: min(70vh, 720px);
+  overflow: hidden;
+  background: #ffffff;
+  cursor: grab;
+  touch-action: none;
+}
+.visualizador-area.visualizador-arrastando { cursor: grabbing; }
+.visualizador-area img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 1200px;
+  max-width: none;
+  transform-origin: center center;
+  translate: -50% -50%;
+  user-select: none;
+}
+
 /* US65 — selo do módulo obrigatório na tela de gestão de módulos do tenant */
 .badge-obrigatorio {
   display: inline-block;
