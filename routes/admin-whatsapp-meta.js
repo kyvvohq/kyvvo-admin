@@ -265,6 +265,12 @@ function registerAdminWhatsappMetaRoutes(fastify, pool) {
           wabaNome: w.name,
           tenantId: tenant ? tenant.tenantId : null,
           tenantNome: tenant ? tenant.tenantNome : null,
+          // Achado ao vivo, 2026-10-21: automação mandando parâmetro nomeado
+          // errado (convenção do código não batia com o nome de verdade no
+          // template) — expõe o que listarTemplatesDaWaba já extrai agora.
+          parametrosCorpo: t.parametrosCorpo || [],
+          parametrosNomeados: Boolean(t.parametrosNomeados),
+          corpoTexto: t.corpoTexto || null,
         });
       });
     });
