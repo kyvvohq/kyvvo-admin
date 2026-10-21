@@ -124,6 +124,18 @@ function registerAdminCrmWhatsappNumerosRoutes(fastify, pool) {
     }
   });
 
+  // Diagnóstico de "automação não disparou" (achado ao vivo, 2026-10-20) —
+  // automações/disparos (crm_automacoes + crm_whatsapp_disparos), nada a
+  // ver com o diagnóstico do agente de IA logo abaixo (conversas/execuções).
+  fastify.get('/api/whatsapp/crm-diagnostico-automacao/:tenantId', { preHandler: [fastify.authenticateAdmin] }, async (request) => {
+    try {
+      return await chamarCrmInterno(`/crm/admin-interno/diagnostico-automacao/${encodeURIComponent(request.params.tenantId)}`);
+    } catch (erro) {
+      fastify.log.error(`[crm-diagnostico-automacao] ${erro.message}`);
+      return { error: erro.message };
+    }
+  });
+
   // Diagnóstico consolidado (kyvvo-crm#143): canal + últimas mensagens/
   // conversas/execuções do agente, pra debugar "bot não responde" sem SQL
   // manual no banco.
