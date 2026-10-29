@@ -1,6 +1,7 @@
 require('dotenv').config();
 
 const path = require('path');
+const fs = require('fs');
 const fsPromises = require('fs/promises');
 const Fastify = require('fastify');
 const jwt = require('@fastify/jwt');
@@ -114,6 +115,24 @@ async function build() {
   // de tenant acima — chegada a partir do clique num usuário vinculado
   // dentro de tenant-detalhe.js.
   fastify.get('/usuarios/:id', async (request, reply) => reply.sendFile('usuario-detalhe.html'));
+
+  // Fallback de SPA pro piloto React em /app/* (ver web/) — qualquer GET
+  // sob /app que não bateu em arquivo real dentro de public/app/ (buildado
+  // pelo Vite, servido pelo @fastify/static já registrado acima) cai aqui
+  // e devolve o index.html buildado, pro React Router cuidar da rota no
+  // cliente (sem isso, refresh ou link direto em /app/administradores dá
+  // 404). Mesmo padrão já usado em kyvvo-platform/index.js pro /admin dele.
+  // O existsSync evita um ENOENT feio num checkout onde web/ ainda não foi
+  // buildado — nesse caso só cai no 404 padrão abaixo.
+  const spaIndexPath = path.join(__dirname, 'public', 'app', 'index.html');
+  fastify.setNotFoundHandler((request, reply) => {
+    if (request.method === 'GET' && request.url.startsWith('/app') && fs.existsSync(spaIndexPath)) {
+      return reply.type('text/html').sendFile('app/index.html');
+    }
+    return reply
+      .code(404)
+      .send({ message: `Route ${request.method}:${request.url} not found`, error: 'Not Found', statusCode: 404 });
+  });
 
   // Versão do backend rodando — version.json gravado pelo workflow de deploy.
   fastify.get('/api/versao', { preHandler: [fastify.authenticateAdmin] }, async () => {
