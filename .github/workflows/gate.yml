@@ -58,6 +58,9 @@ jobs:
       - name: Testes unitários
         run: npm test
 
+      - name: Build web/ (piloto React)
+        run: npm --prefix web ci && npm --prefix web run build
+
       - name: node -c em todos os .js
         run: |
           find . -name "*.js" -not -path "./node_modules/*" -print0 \

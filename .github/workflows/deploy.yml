@@ -31,6 +31,18 @@ jobs:
           COMMIT_CURTO="${GITHUB_SHA::7}"
           echo "{\"commit\":\"${COMMIT_CURTO}\",\"deployedAt\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}" > version.json
 
+      # O container de produção só roda `npm install --omit=dev && node
+      # index.js` (ver kyvvo-infra/docker-compose.yml) — não tem toolchain
+      # pra buildar o Vite ali. O build do piloto React (web/) acontece
+      # aqui, e o resultado (public/app/**) viaja no mesmo scp de public/**
+      # abaixo, como qualquer outro arquivo estático.
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+
+      - name: Build web/ (piloto React)
+        run: npm --prefix web ci && npm --prefix web run build
+
       - name: Copiar arquivos pra EC2
         uses: appleboy/scp-action@v1.0.0
         with:

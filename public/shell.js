@@ -115,6 +115,10 @@ const NAV_TREE = [
   {
     tipo: 'grupo', label: 'Sistema', icon: 'shield', filhos: [
       { label: 'Administradores', href: '/administradores.html' },
+      // Piloto React (ver web/) — temporário, pra comparar lado a lado em
+      // produção antes de decidir migrar mais telas. Remover quando a
+      // decisão for tomada (ou migrar de vez e apagar a linha de cima).
+      { label: 'Administradores (novo)', href: '/app/administradores' },
       { label: 'Permissões', pendente: true },
       { label: 'Feature Flags', pendente: true },
       { label: 'Auditoria', pendente: true },
